@@ -1,0 +1,30 @@
+{
+    "name": "@geolead/api",
+    "version": "0.1.0",
+    "private": true,
+    "main": "./src/index.ts",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "lint": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@geolead/ai": "workspace:*",
+        "@geolead/config": "workspace:*",
+        "@geolead/db": "workspace:*",
+        "@geolead/types": "workspace:*",
+        "cheerio": "^1.2.0",
+        "cors": "^2.8.5",
+        "exceljs": "^4.4.0",
+        "express": "^5.1.0",
+        "mongodb": "^7.1.0"
+    },
+    "devDependencies": {
+        "@types/cors": "^2",
+        "@types/express": "^5",
+        "@types/node": "^20",
+        "tsx": "^4.19.0",
+        "typescript": "^5"
+    }
+}

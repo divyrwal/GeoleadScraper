@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoLead Scraper</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <img src="icons/icon48.png" alt="Logo" class="logo">
+      <h1>GeoLead Scraper</h1>
+    </header>
+
+    <div id="status-card" class="card">
+      <div id="connection-status" class="status-indicator">
+        <span class="dot"></span>
+        <span class="text">Connecting to API...</span>
+      </div>
+      <p id="page-status" class="sub-text">Checking Google Maps...</p>
+    </div>
+
+    <!-- Speed Control -->
+    <div class="card speed-card">
+      <label class="speed-label">
+        <span>Extraction Speed</span>
+        <span id="speed-value" class="speed-value-display">Normal</span>
+      </label>
+      <input type="range" id="speed-slider" min="150" max="1000" value="300" step="50" class="speed-slider">
+      <div class="speed-labels">
+        <span>Fast</span>
+        <span>Slow (safer)</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="extract-btn" class="primary-btn" disabled>
+        <span class="btn-text">Extract All Leads</span>
+        <span class="loader hidden"></span>
+      </button>
+      <button id="stop-btn" class="danger-btn hidden">
+        <span>⏹ Stop Extraction</span>
+      </button>
+      <button id="settings-btn" class="secondary-btn">Settings</button>
+    </div>
+
+    <!-- Progress -->
+    <div id="progress-section" class="hidden">
+      <div class="progress-bar-container">
+        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+      </div>
+      <p id="progress-message" class="progress-text">Starting...</p>
+      <p id="progress-eta" class="eta-text"></p>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="results hidden">
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-label">Found</span>
+          <span id="found-count" class="stat-value">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Scraped</span>
+          <span id="scraped-count" class="stat-value text-blue">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Saved</span>
+          <span id="saved-count" class="stat-value text-green">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Duplicates</span>
+          <span id="dup-count" class="stat-value text-orange">0</span>
+        </div>
+      </div>
+      <a href="http://localhost:3000/leads" target="_blank" class="dashboard-link">View in Dashboard →</a>
+    </div>
+
+    <!-- Scrape History -->
+    <div id="history-section" class="card history-card">
+      <h3 class="history-title">Recent Scrapes</h3>
+      <div id="history-list" class="history-list">
+        <p class="sub-text">No scrapes yet</p>
+      </div>
+    </div>
+
+    <div id="settings-panel" class="hidden">
+      <h3>Settings</h3>
+      <div class="form-group">
+        <label for="api-url">API Endpoint</label>
+        <input type="text" id="api-url" value="http://localhost:4000">
+      </div>
+      <button id="save-settings" class="small-btn">Save</button>
+    </div>
+
+    <footer>
+      <p>Version 3.0.0 | Real-time extraction with background saving</p>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+
+</html>
