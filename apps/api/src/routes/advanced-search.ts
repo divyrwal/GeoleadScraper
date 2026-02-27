@@ -111,10 +111,11 @@ advancedSearchRouter.get("/grid", async (req, res) => {
         // 2. Generate a 3x3 grid
         const gridZones = generateGridFromBox(geoData.box, location, 3, jobId);
 
-        // 3. Return coordinates for the Extension
+        // 3. Return coordinates + bounds for the Extension
         res.status(200).json({
             success: true,
             location: location,
+            bounds: geoData.box, // Original bounding box for geo-filtering
             grid: gridZones.map(zone => ({
                 lat: zone.center.lat,
                 lng: zone.center.lng,

@@ -52,10 +52,13 @@ let zoneInjected = false;
 let globalSeenIds = new Set();
 let globalSeenPhones = new Set();
 let zoneStartTime = 0;
+let currentGridLocation = ''; // Location name for Maps URL
+let gridBounds = null; // Bounding box from geocoding for geo-filtering
 
 // Zone watchdog timer
 let zoneWatchdogTimer = null;
-const ZONE_TIMEOUT_MS = 120000;
+const ZONE_TIMEOUT_MS = 120000; // Base timeout (scales dynamically with zone size)
+let currentZoneTimeout = ZONE_TIMEOUT_MS;
 
 // Per-zone stats
 let zoneStats = [];
@@ -84,12 +87,13 @@ function clearZoneWatchdog() {
  * Start a watchdog timer for the current zone.
  * If extraction_done is not received within ZONE_TIMEOUT_MS, force-skip.
  */
-function startZoneWatchdog() {
+function startZoneWatchdog(timeoutMs) {
     clearZoneWatchdog();
+    currentZoneTimeout = timeoutMs || ZONE_TIMEOUT_MS;
     zoneWatchdogTimer = setTimeout(() => {
         if (!isGridScanning) return;
         const zoneIndex = gridTotal - gridQueue.length;
-        debugLog('WARN', 'BG', `Zone ${zoneIndex}/${gridTotal} timed out after ${ZONE_TIMEOUT_MS / 1000}s. Force-skipping.`);
+        debugLog('WARN', 'BG', `Zone ${zoneIndex}/${gridTotal} timed out after ${currentZoneTimeout / 1000}s. Force-skipping.`);
 
         chrome.runtime.sendMessage({
             type: "progress",
@@ -99,7 +103,16 @@ function startZoneWatchdog() {
         }).catch(() => { });
 
         nextGridZone();
-    }, ZONE_TIMEOUT_MS);
+    }, currentZoneTimeout);
+}
+
+/**
+ * Reset watchdog on activity (e.g., leads_batch received)
+ */
+function resetZoneWatchdog() {
+    if (zoneWatchdogTimer && isGridScanning) {
+        startZoneWatchdog(currentZoneTimeout);
+    }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -124,6 +137,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const zoneIndex = gridTotal - gridQueue.length;
             if (message.message && !message.message.includes('[Zone')) {
                 message.message = `[Zone ${zoneIndex}/${gridTotal}] ${message.message}`;
+            }
+
+            // When extraction starts, scale the watchdog based on found count
+            if (message.status === 'extracting' && message.found > 0) {
+                const perCardTimeout = 5000; // 5s per card
+                const dynamicTimeout = Math.max(message.found * perCardTimeout, ZONE_TIMEOUT_MS);
+                if (dynamicTimeout > currentZoneTimeout) {
+                    debugLog('INFO', 'BG', `Scaling zone watchdog to ${dynamicTimeout / 1000}s for ${message.found} targets`);
+                    startZoneWatchdog(dynamicTimeout);
+                }
             }
         }
 
@@ -180,6 +203,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (dupCount > 0) {
             debugLog('INFO', 'BG', `Filtered ${dupCount} cross-zone dupes from batch of ${message.leads.length}`);
         }
+
+        // Reset watchdog on activity — scraper is still working
+        resetZoneWatchdog();
 
         if (uniqueLeads.length > 0) {
             saveLeadsToApi(uniqueLeads, message.search_query);
@@ -291,6 +317,8 @@ async function startGridScan(query, location, speed, tabId) {
 
     gridQueue = data.grid;
     gridTotal = gridQueue.length;
+    currentGridLocation = location;
+    gridBounds = data.bounds || null; // Bounding box from geocoding
 
     chrome.runtime.sendMessage({
         type: "progress",
@@ -342,13 +370,17 @@ function nextGridZone() {
 
     const lat = zone.lat.toFixed(6);
     const lng = zone.lng.toFixed(6);
-    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(currentGridQuery)}/@${lat},${lng},15z`;
+    // Include location in the search query to restrict results geographically
+    const searchTerm = currentGridLocation
+        ? `${currentGridQuery} in ${currentGridLocation}`
+        : currentGridQuery;
+    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchTerm)}/@${lat},${lng},14z`;
 
     zoneInjected = false;
     zoneStartTime = Date.now();
     chrome.tabs.update(currentTargetTabId, { url: mapsUrl });
 
-    startZoneWatchdog();
+    startZoneWatchdog(ZONE_TIMEOUT_MS); // Start with base timeout, scales when extraction begins
 }
 
 // ═══════════════════════════════════════════════════════
@@ -378,12 +410,20 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             // Small delay after reset, then start extraction
             setTimeout(() => {
                 if (!isGridScanning) return;
-                chrome.tabs.sendMessage(tabId, { action: "extract_all", speed: currentExtractionSpeed }, (response) => {
+                chrome.tabs.sendMessage(tabId, {
+                    action: "extract_all",
+                    speed: currentExtractionSpeed,
+                    bounds: gridBounds || null // Pass geographic bounds for filtering
+                }, (response) => {
                     if (chrome.runtime.lastError) {
                         debugLog('WARN', 'BG', `Zone ${zoneIndex} inject failed, retrying in 3s...`);
                         setTimeout(() => {
                             if (!isGridScanning) return;
-                            chrome.tabs.sendMessage(tabId, { action: "extract_all", speed: currentExtractionSpeed }, (retryResponse) => {
+                            chrome.tabs.sendMessage(tabId, {
+                                action: "extract_all",
+                                speed: currentExtractionSpeed,
+                                bounds: gridBounds || null
+                            }, (retryResponse) => {
                                 if (chrome.runtime.lastError) {
                                     debugLog('ERROR', 'BG', `Zone ${zoneIndex} inject failed after retry. Skipping.`);
                                     chrome.runtime.sendMessage({

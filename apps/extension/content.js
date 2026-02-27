@@ -13,6 +13,7 @@
 let isExtracting = false;
 let shouldStop = false;
 let extractionSpeed = 300;
+let activeBounds = null; // Geographic bounds for filtering {south, north, west, east}
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -42,12 +43,20 @@ async function ensureCardsLoaded(targetIndex) {
 
     let cards = feed.querySelectorAll('div[role="article"]');
     let staleCount = 0;
-    const MAX_SCROLL_ATTEMPTS = 30; // Max ~210 cards (30 × 7)
+    const MAX_SCROLL_ATTEMPTS = 50; // Max ~350 cards (50 × 7)
+    const STALE_BREAK = 6; // Give up after 6 consecutive stale scrolls
 
     while (cards.length <= targetIndex && staleCount < MAX_SCROLL_ATTEMPTS) {
         const prevCount = cards.length;
+
+        // Progressive scroll: half viewport first, then full, to trigger lazy-loading
+        feed.scrollTop = feed.scrollHeight - (feed.clientHeight / 2);
+        await sleep(200);
         feed.scrollTop = feed.scrollHeight;
-        await sleep(400);
+
+        // Progressive wait: longer waits on stale scrolls
+        const waitMs = staleCount > 2 ? 800 : staleCount > 0 ? 600 : 400;
+        await sleep(waitMs);
 
         // Re-query feed (may have been recreated by Maps)
         feed = getResultsFeed() || feed;
@@ -55,7 +64,7 @@ async function ensureCardsLoaded(targetIndex) {
 
         if (cards.length === prevCount) {
             staleCount++;
-            if (staleCount >= 3) break; // No new cards after 3 consecutive stale scrolls
+            if (staleCount >= STALE_BREAK) break;
         } else {
             staleCount = 0; // Reset — new cards loaded
         }
@@ -241,27 +250,35 @@ function extractDetailFields() {
  * Go back to results list — hardened with 3-tier fallback
  */
 async function goBackToList() {
-    // Tier 1: Click the Back button
+    // Pre-check: if feed is already visible (no panel open), return immediately
+    const existingFeed = getResultsFeed();
+    if (existingFeed && existingFeed.querySelectorAll('div[role="article"]').length > 0) {
+        // Check that the detail panel is NOT covering the feed
+        const detailPanel = document.querySelector('h1.DUwDvf');
+        if (!detailPanel) return true;
+    }
+
+    // Tier 1: Click the Back button (3 attempts, 20×300ms = 6s polling each)
     for (let attempt = 0; attempt < 3; attempt++) {
         const backBtn = document.querySelector('button[aria-label="Back"]');
         if (backBtn) {
             backBtn.click();
-            for (let i = 0; i < 12; i++) {
-                await sleep(250);
+            for (let i = 0; i < 20; i++) {
+                await sleep(300);
                 const feed = getResultsFeed();
                 if (feed && feed.querySelectorAll('div[role="article"]').length > 0) {
                     return true;
                 }
             }
         }
-        await sleep(300);
+        await sleep(400);
     }
 
-    // Tier 2: Browser history.back()
+    // Tier 2: Browser history.back() (20×400ms = 8s polling)
     try {
         history.back();
-        for (let i = 0; i < 15; i++) {
-            await sleep(300);
+        for (let i = 0; i < 20; i++) {
+            await sleep(400);
             const feed = getResultsFeed();
             if (feed && feed.querySelectorAll('div[role="article"]').length > 0) {
                 return true;
@@ -270,7 +287,7 @@ async function goBackToList() {
     } catch (e) { /* ignore */ }
 
     // Tier 3: Give up and hope for the best
-    await sleep(1000);
+    await sleep(1500);
     return false;
 }
 
@@ -291,6 +308,26 @@ function verifyPanelMatch(expectedName) {
     const panelName = h1.textContent.trim().toLowerCase();
     const expected = expectedName.toLowerCase().trim();
     return panelName.includes(expected) || expected.includes(panelName) || panelName.length > 0;
+}
+
+/**
+ * Check if a lead's coordinates fall within the active geographic bounds.
+ * Returns true if no bounds are set or if the lead is within bounds (with 15% tolerance).
+ */
+function isWithinBounds(lat, lng) {
+    if (!activeBounds || (!lat && !lng)) return true; // No bounds or no coords — allow
+    if (lat === 0 && lng === 0) return true; // No real coords extracted — allow
+
+    const latRange = activeBounds.north - activeBounds.south;
+    const lngRange = activeBounds.east - activeBounds.west;
+    const tolerance = 0.15; // 15% tolerance beyond the bounding box
+
+    return (
+        lat >= activeBounds.south - (latRange * tolerance) &&
+        lat <= activeBounds.north + (latRange * tolerance) &&
+        lng >= activeBounds.west - (lngRange * tolerance) &&
+        lng <= activeBounds.east + (lngRange * tolerance)
+    );
 }
 
 /**
@@ -315,6 +352,8 @@ async function extractAllLeads() {
     let failCount = 0;
     let skipCount = 0;
     let totalCards = 0;
+    let consecutiveFailures = 0;
+    const MAX_CONSECUTIVE_FAILURES = 5;
 
     const feed = getResultsFeed();
     if (!feed) {
@@ -391,6 +430,17 @@ async function extractAllLeads() {
         for (let i = 0; i < totalCards; i++) {
             if (shouldStop) break;
 
+            // Circuit-breaker: abort if too many consecutive failures
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                contentLog('ERROR', `${MAX_CONSECUTIVE_FAILURES} consecutive failures. Aborting extraction to avoid infinite stall.`);
+                sendMsg({
+                    type: "progress", status: "extracting",
+                    found: totalCards, scraped: allLeads.length,
+                    message: `⚠ ${MAX_CONSECUTIVE_FAILURES} consecutive failures — aborting zone early.`
+                });
+                break;
+            }
+
             // Ensure feed + cards are loaded up to our current index
             // (Google Maps lazy-loads cards and may recreate the feed after panel navigation)
             const { feed: liveFeed, cards: currentCards } = await ensureCardsLoaded(i);
@@ -415,6 +465,13 @@ async function extractAllLeads() {
             localSeenIds.add(basics.google_place_id);
             localSeenNames.add(nameKey);
 
+            // Geographic bounds filter — skip leads clearly outside target area
+            if (!isWithinBounds(basics.location_lat, basics.location_long)) {
+                skipCount++;
+                contentLog('INFO', `Skipping ${basics.business_name} — outside target area bounds`);
+                continue;
+            }
+
             // Scroll card into view and click
             card.scrollIntoView({ behavior: 'instant', block: 'center' });
             await sleep(250);
@@ -437,9 +494,11 @@ async function extractAllLeads() {
             let detail = {};
             if (loaded) {
                 detail = extractDetailFields();
+                consecutiveFailures = 0; // Reset on success
             } else {
                 failCount++;
-                contentLog('WARN', `Panel failed after retry for ${basics.business_name}. Extracting basic info only.`);
+                consecutiveFailures++;
+                contentLog('WARN', `Panel failed after retry for ${basics.business_name}. Consecutive failures: ${consecutiveFailures}`);
             }
 
             // Merge card basics + detail panel data
@@ -491,19 +550,30 @@ async function extractAllLeads() {
             // Go back to list — hardened
             const backOk = await goBackToList();
             if (!backOk) {
+                consecutiveFailures++;
                 await sleep(1500);
                 const feed2 = getResultsFeed();
                 if (!feed2 || feed2.querySelectorAll('div[role="article"]').length === 0) {
-                    contentLog('WARN', `Lost navigation at ${i + 1}/${totalCards}. Attempting recovery.`);
+                    contentLog('WARN', `Lost navigation at ${i + 1}/${totalCards}. Consecutive failures: ${consecutiveFailures}. Attempting recovery.`);
                     sendMsg({
                         type: "progress", status: "extracting",
                         found: totalCards, scraped: allLeads.length,
                         message: `⚠ Lost navigation at ${i + 1}/${totalCards}. Recovering...`
                     });
-                    const backBtn = document.querySelector('button[aria-label="Back"]');
-                    if (backBtn) backBtn.click();
-                    await sleep(2000);
+                    // Try history.back as emergency fallback
+                    try { history.back(); } catch (e) { /* ignore */ }
+                    await sleep(2500);
+                    // One more check
+                    const feed3 = getResultsFeed();
+                    if (!feed3 || feed3.querySelectorAll('div[role="article"]').length === 0) {
+                        const backBtn = document.querySelector('button[aria-label="Back"]');
+                        if (backBtn) backBtn.click();
+                        await sleep(2000);
+                    }
                 }
+            } else {
+                // Successful navigation back resets consecutive failures
+                if (consecutiveFailures > 0 && loaded) consecutiveFailures = 0;
             }
 
             // Pre-load cards for next iteration (handles lazy-loading after Back navigation)
@@ -565,6 +635,14 @@ async function extractAllLeads() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "extract_all" || request.action === "extract") {
         if (request.speed) extractionSpeed = request.speed;
+
+        // Accept geographic bounds for filtering
+        if (request.bounds) {
+            activeBounds = request.bounds;
+            contentLog('INFO', `Geo-bounds set: S${request.bounds.south.toFixed(3)} N${request.bounds.north.toFixed(3)} W${request.bounds.west.toFixed(3)} E${request.bounds.east.toFixed(3)}`);
+        } else {
+            activeBounds = null;
+        }
 
         // If already extracting, reject the duplicate request
         if (isExtracting) {

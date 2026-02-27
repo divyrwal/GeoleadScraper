@@ -83,11 +83,12 @@ export async function geocodeLocation(location: string, jobId: string): Promise<
 export function generateGridFromBox(box: BoundingBox, locationName: string, gridSize: number = 3, jobId: string): GridZone[] {
     broadcastLog(jobId, 'info', `[GridEngine] Slicing bounding box into a ${gridSize}x${gridSize} grid...`);
 
-    // Pad the bounding box by 10% to capture businesses at city edges
+    // Pad the bounding box by 5% to capture businesses at city edges
+    // (reduced from 10% to avoid extending zones into neighboring cities)
     const latRange = box.north - box.south;
     const lngRange = box.east - box.west;
-    const padLat = latRange * 0.10;
-    const padLng = lngRange * 0.10;
+    const padLat = latRange * 0.05;
+    const padLng = lngRange * 0.05;
 
     const paddedBox = {
         south: box.south - padLat,
