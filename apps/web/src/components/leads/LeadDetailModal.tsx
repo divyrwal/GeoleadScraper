@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
     X, Phone, Globe, MapPin, Sparkles, Loader2, MessageCircle,
     Clock, Star, Send, Copy, ExternalLink, Mail, Tag,
-    Flame, Thermometer, Snowflake, CheckCircle,
+    Flame, Thermometer, Snowflake, CheckCircle, LayoutTemplate,
     Instagram, Facebook, Linkedin, Twitter
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -47,6 +47,8 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }: LeadDetailM
     const [saving, setSaving] = useState(false);
     const [contacting, setContacting] = useState(false);
     const [enriching, setEnriching] = useState(false);
+    const [auditing, setAuditing] = useState(false);
+    const [generatingPitch, setGeneratingPitch] = useState(false);
     const [copied, setCopied] = useState<string | null>(null);
 
     useEffect(() => {
@@ -81,6 +83,20 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }: LeadDetailM
             if (result.success) onUpdate(result.data);
         } catch (err) { console.error("Enrichment failed:", err); }
         finally { setEnriching(false); }
+    };
+
+    const handleAudit = async (includeAi: boolean = false) => {
+        if (includeAi) setGeneratingPitch(true);
+        else setAuditing(true);
+
+        try {
+            const result = await api.auditLeadWebsite(lead.id, includeAi);
+            if (result.success) onUpdate(result.data);
+        } catch (err) { console.error("Audit failed:", err); }
+        finally {
+            setAuditing(false);
+            setGeneratingPitch(false);
+        }
     };
 
     const copyToClipboard = (text: string, label: string) => {
@@ -250,11 +266,100 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }: LeadDetailM
                     {/* AI Analysis */}
                     {lead.ai_analysis && (
                         <Card className="border-purple-200 bg-purple-50/50">
-                            <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-purple-600" />AI Analysis</CardTitle></CardHeader>
+                            <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-purple-600" />Data Importer Fixes</CardTitle></CardHeader>
                             <CardContent className="space-y-2">
                                 <p className="text-sm">{lead.ai_analysis.pitch}</p>
                                 {lead.ai_analysis.pain_points.length > 0 && <div className="flex flex-wrap gap-1">{lead.ai_analysis.pain_points.map((p, i) => <Badge key={i} variant="outline" className="text-xs">{p}</Badge>)}</div>}
                             </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Web Audit */}
+                    {lead.website_url && (
+                        <Card className="border-indigo-200 bg-indigo-50/10 dark:bg-indigo-950/20 dark:border-indigo-900/50">
+                            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                    <LayoutTemplate className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                                    Phase 2.6: Web Auditor
+                                </CardTitle>
+                                <div className="flex items-center gap-2">
+                                    {(!lead.website_audit || (!lead.website_audit.ai_pitch && !generatingPitch)) && (
+                                        <Button variant="outline" size="sm" onClick={() => handleAudit(true)} disabled={generatingPitch || auditing} className="h-7 text-xs px-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-900/50">
+                                            {generatingPitch ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Sparkles className="h-3 w-3 mr-1.5" />}
+                                            {lead.website_audit ? "Generate Pitch (AI)" : "Full Audit (AI)"}
+                                        </Button>
+                                    )}
+                                    {!lead.website_audit && (
+                                        <Button variant="outline" size="sm" onClick={() => handleAudit(false)} disabled={auditing || generatingPitch} className="h-7 text-xs px-2">
+                                            {auditing ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Globe className="h-3 w-3 mr-1.5 text-indigo-500" />}
+                                            Quick Scan
+                                        </Button>
+                                    )}
+                                </div>
+                            </CardHeader>
+                            {lead.website_audit && (
+                                <CardContent className="space-y-3">
+                                    <div className="flex flex-wrap gap-2">
+                                        {lead.website_audit.tech_stack.length > 0 ? (
+                                            lead.website_audit.tech_stack.map(tech => (
+                                                <Badge key={tech} variant="secondary" className="text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300 hover:bg-indigo-200">{tech}</Badge>
+                                            ))
+                                        ) : (
+                                            <Badge variant="outline" className="text-xs text-muted-foreground">Unknown Stack</Badge>
+                                        )}
+                                        {lead.website_audit.has_ssl ? (
+                                            <Badge variant="outline" className="text-xs border-green-200 text-green-700 bg-green-50/50 dark:border-green-900/50 dark:text-green-400 dark:bg-green-900/20">SSL Secure</Badge>
+                                        ) : (
+                                            <Badge variant="outline" className="text-xs border-red-200 text-red-700 bg-red-50/50 dark:border-red-900/50 dark:text-red-400 dark:bg-red-900/20">No SSL</Badge>
+                                        )}
+                                        {lead.website_audit.domain_creation_date && (
+                                            <Badge variant="outline" className="text-xs border-amber-200 text-amber-700 bg-amber-50/50 dark:border-amber-900/50 dark:text-amber-400 dark:bg-amber-900/20">
+                                                <Clock className="h-3 w-3 mr-1 inline" /> Built {lead.website_audit.domain_creation_date.substring(0, 4)}
+                                            </Badge>
+                                        )}
+                                    </div>
+
+                                    {lead.website_audit.ai_flaws.length > 0 && (
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Detected Flaws</p>
+                                            <ul className="list-disc pl-4 space-y-1">
+                                                {lead.website_audit.ai_flaws.map((flaw, i) => (
+                                                    <li key={i} className="text-xs text-rose-600 dark:text-rose-400">{flaw}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {lead.website_audit.ai_pitch && (
+                                        <div className="space-y-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Cold Email Generator</p>
+                                                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 -mr-2" onClick={() => copyToClipboard(lead.website_audit!.ai_pitch!, "pitch")}>
+                                                    {copied === "pitch" ? <CheckCircle className="h-3 w-3 mr-1 text-green-500" /> : <Copy className="h-3 w-3 mr-1" />}
+                                                    Copy
+                                                </Button>
+                                            </div>
+                                            <div className="p-3 bg-background rounded-md border text-xs italic text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                                                "{lead.website_audit.ai_pitch}"
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="pt-2 border-t flex items-center justify-between text-[10px] text-muted-foreground">
+                                        <span>Audited {formatDate(lead.website_audit.audited_at)}</span>
+                                        <div className="flex gap-2">
+                                            <Button variant="link" size="sm" onClick={() => handleAudit(false)} disabled={auditing} className="h-auto p-0 text-[10px]">
+                                                {auditing ? "Scanning..." : "Re-scan site"}
+                                            </Button>
+                                            {lead.website_audit.ai_pitch && (
+                                                <Button variant="link" size="sm" onClick={() => handleAudit(true)} disabled={generatingPitch} className="h-auto p-0 text-[10px] text-indigo-500">
+                                                    {generatingPitch ? "Generating..." : "Regenerate AI Pitch"}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            )}
                         </Card>
                     )}
 

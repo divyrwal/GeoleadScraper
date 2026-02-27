@@ -1,7 +1,7 @@
 // API client for the web app
 // All frontend API calls go through this utility
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const url = `${API_URL}${path}`;
@@ -91,12 +91,16 @@ export const api = {
 
     // Duplicates
     getDuplicates: () =>
-        request<{ success: boolean; data: Record<string, unknown>[]; totalGroups: number; totalDuplicateLeads: number }>("/api/leads/duplicates"),
+        request<{ success: boolean; data: any[]; totalGroups: number; totalDuplicateLeads: number }>("/api/leads/duplicates"),
 
     // Enrichment
     enrichLead: (id: string) =>
-        request<{ success: boolean; data: Lead }>(`/api/leads/${id}/enrich`, { method: "POST" }),
+        request<{ success: boolean; data: import("@geolead/types").Lead }>(`/api/leads/${id}/enrich`, { method: "POST" }),
 
     enrichBatchLeads: () =>
         request<{ success: boolean; message: string }>("/api/leads/enrich/batch", { method: "POST" }),
+
+    // Web Audit
+    auditLeadWebsite: (id: string, includeAi: boolean = false) =>
+        request<{ success: boolean; data: import("@geolead/types").Lead }>(`/api/leads/${id}/audit${includeAi ? '?includeAi=true' : ''}`, { method: "POST" }),
 };

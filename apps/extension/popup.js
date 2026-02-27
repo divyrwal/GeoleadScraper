@@ -23,6 +23,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     const progressMessage = document.getElementById('progress-message');
     const progressEta = document.getElementById('progress-eta');
 
+    // Tabs
+    const tabBrowser = document.getElementById('tab-browser');
+    const tabAutopilot = document.getElementById('tab-autopilot');
+    const panelBrowser = document.getElementById('panel-browser');
+    const panelAutopilot = document.getElementById('panel-autopilot');
+
+    // Autopilot Form Elements
+    const autoQuery = document.getElementById('auto-query');
+    const autoLocation = document.getElementById('auto-location');
+    const autoMax = document.getElementById('auto-max');
+    const launchAutopilotBtn = document.getElementById('launch-autopilot-btn');
+    const srcGmaps = document.getElementById('src-gmaps');
+    const srcJd = document.getElementById('src-jd');
+    const srcInstagram = document.getElementById('src-instagram');
+    const srcAi = document.getElementById('src-ai');
+    const srcDeepScan = document.getElementById('src-deepscan');
+
+    // Browser Scrape Grid Elements
+    const browserDeepScan = document.getElementById('browser-deepscan');
+    const browserGridInputs = document.getElementById('browser-grid-inputs');
+    const browserQuery = document.getElementById('browser-query');
+    const browserLocation = document.getElementById('browser-location');
+
+    // Autopilot Status
+    const apStatus = document.getElementById('autopilot-status');
+    const apError = document.getElementById('autopilot-error');
+    const apErrorMsg = document.getElementById('autopilot-error-msg');
+
     // Speed control
     const speedSlider = document.getElementById('speed-slider');
     const speedValue = document.getElementById('speed-value');
@@ -38,7 +66,77 @@ document.addEventListener('DOMContentLoaded', async () => {
             speedSlider.value = result.extractionSpeed;
             updateSpeedLabel(result.extractionSpeed);
         }
+        if (result.autoMax) autoMax.value = result.autoMax;
+
+        if (result.browserQuery) browserQuery.value = result.browserQuery;
+        if (result.browserLocation) browserLocation.value = result.browserLocation;
+        if (result.browserDeepScan) {
+            browserDeepScan.checked = true;
+            browserGridInputs.classList.remove('hidden');
+        }
     });
+
+    // Save browser grid form data on change
+    const saveBrowserForm = () => {
+        chrome.storage.local.set({
+            browserQuery: browserQuery.value,
+            browserLocation: browserLocation.value,
+            browserDeepScan: browserDeepScan.checked
+        });
+    };
+    browserQuery.addEventListener('input', saveBrowserForm);
+    browserLocation.addEventListener('input', saveBrowserForm);
+
+    browserDeepScan.addEventListener('change', (e) => {
+        saveBrowserForm();
+        if (e.target.checked) {
+            browserGridInputs.classList.remove('hidden');
+            extractBtn.disabled = false;
+            pageStatus.textContent = "Ready for Master Queue Grid Scan";
+        } else {
+            browserGridInputs.classList.add('hidden');
+            if (isGoogleMaps) {
+                extractBtn.disabled = false;
+                pageStatus.textContent = "Ready to extract from Google Maps";
+            } else {
+                extractBtn.disabled = true;
+                pageStatus.textContent = "Please open Google Maps search results";
+            }
+        }
+    });
+
+    // Tab Switching Logic
+    function switchTab(tab) {
+        if (tab === 'browser') {
+            tabBrowser.classList.add('active');
+            tabAutopilot.classList.remove('active');
+            panelBrowser.classList.remove('hidden');
+            panelAutopilot.classList.add('hidden');
+        } else {
+            tabBrowser.classList.remove('active');
+            tabAutopilot.classList.add('active');
+            panelBrowser.classList.add('hidden');
+            panelAutopilot.classList.remove('hidden');
+
+            // Auto-fill query based on current URL if empty
+            if (!autoQuery.value && tabData && tabData.url.includes('google.com/maps')) {
+                const searchParam = tabData.url.match(/\/maps\/search\/(.+?)(?:\/|@|$)/);
+                if (searchParam) {
+                    const fullUrlQuery = decodeURIComponent(searchParam[1].replace(/\+/g, ' '));
+                    const parts = fullUrlQuery.split(' in ');
+                    if (parts.length > 1) {
+                        autoQuery.value = parts[0];
+                        autoLocation.value = parts[1];
+                    } else {
+                        autoQuery.value = fullUrlQuery;
+                    }
+                }
+            }
+        }
+    }
+
+    tabBrowser.addEventListener('click', () => switchTab('browser'));
+    tabAutopilot.addEventListener('click', () => switchTab('autopilot'));
 
     function updateSpeedLabel(val) {
         const ms = parseInt(val);
@@ -53,13 +151,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         chrome.storage.local.set({ extractionSpeed: parseInt(e.target.value) });
     });
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const isGoogleMaps = tab?.url?.includes('google.com/maps');
+    // Save autopilot form data on change
+    const saveAutoForm = () => {
+        chrome.storage.local.set({
+            autoQuery: autoQuery.value,
+            autoLocation: autoLocation.value,
+            autoMax: autoMax.value
+        });
+    };
+    autoQuery.addEventListener('input', saveAutoForm);
+    autoLocation.addEventListener('input', saveAutoForm);
+    autoMax.addEventListener('input', saveAutoForm);
 
-    if (isGoogleMaps) {
+    const [tabData] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const isGoogleMaps = tabData?.url?.includes('google.com/maps');
+
+    if (browserDeepScan && browserDeepScan.checked) {
+        extractBtn.disabled = false;
+        pageStatus.textContent = "Ready for Master Queue Grid Scan";
+    } else if (isGoogleMaps) {
         extractBtn.disabled = false;
         pageStatus.textContent = "Ready to extract from Google Maps";
     } else {
+        extractBtn.disabled = true;
         pageStatus.textContent = "Please open Google Maps search results";
     }
 
@@ -126,6 +240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         resultsDiv.classList.remove('hidden');
         progressBar.style.width = '100%';
         progressEta.textContent = '';
+        progressMessage.textContent = 'Extraction Complete!';
 
         // Save to history
         if (found > 0) {
@@ -154,8 +269,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         progressEta.textContent = '';
         resultsDiv.classList.add('hidden');
 
+        if (browserDeepScan.checked) {
+            const query = browserQuery.value.trim();
+            const location = browserLocation.value.trim();
+            if (!query || !location) {
+                alert("Please fill in both Search Query and Target Location for Grid Scan.");
+                onExtractionComplete(0, 0);
+                return;
+            }
+
+            // Send to background to initiate the Master Queue
+            chrome.runtime.sendMessage({
+                action: "start_grid_scan",
+                query,
+                location,
+                speed: parseInt(speedSlider.value),
+                targetTabId: tabData.id
+            }, (response) => {
+                if (chrome.runtime.lastError) {
+                    // Could be ignored as background script handles it returning async
+                }
+                if (response && response.error) {
+                    alert(response.error);
+                    onExtractionComplete(0, 0);
+                }
+            });
+            return;
+        }
+
         try {
-            chrome.tabs.sendMessage(tab.id, {
+            chrome.tabs.sendMessage(tabData.id, {
                 action: "extract_all",
                 speed: parseInt(speedSlider.value)
             }, (response) => {
@@ -175,8 +318,79 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // --- Autopilot Logic ---
+    launchAutopilotBtn.addEventListener('click', async () => {
+        const query = autoQuery.value.trim();
+        const location = autoLocation.value.trim();
+        const maxResults = parseInt(autoMax.value) || 50;
+
+        if (!query || !location) {
+            apError.classList.remove('hidden');
+            apErrorMsg.textContent = "Please fill in both query and location.";
+            return;
+        }
+
+        apStatus.classList.add('hidden');
+        apError.classList.add('hidden');
+        launchAutopilotBtn.disabled = true;
+        launchAutopilotBtn.querySelector('.loader').classList.remove('hidden');
+        launchAutopilotBtn.querySelector('.btn-text').textContent = "Launching...";
+
+        const sources = {
+            googleMaps: srcGmaps.checked,
+            justDial: srcJd.checked,
+            linkedIn: srcLinkedin.checked,
+            instagram: srcInstagram.checked
+        };
+
+        if (!srcGmaps.checked && !srcJd.checked && !srcLinkedin.checked && !srcInstagram.checked) {
+            apError.classList.remove('hidden');
+            apErrorMsg.textContent = "Select at least one source.";
+            resetAutoBtn();
+            return;
+        }
+
+        try {
+            const response = await fetch(`${apiUrlInput.value}/api/search/advanced`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    query,
+                    location,
+                    sources,
+                    useLocalAi: srcAi.checked,
+                    deepScan: srcDeepScan.checked,
+                    maxResults
+                })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                apStatus.classList.remove('hidden');
+            } else {
+                apError.classList.remove('hidden');
+                apErrorMsg.textContent = data.error || "Failed to start orchestration job.";
+            }
+        } catch (e) {
+            apError.classList.remove('hidden');
+            apErrorMsg.textContent = "Cannot connect to backend API server.";
+        } finally {
+            resetAutoBtn();
+        }
+    });
+
+    function resetAutoBtn() {
+        launchAutopilotBtn.disabled = false;
+        launchAutopilotBtn.querySelector('.loader').classList.add('hidden');
+        launchAutopilotBtn.querySelector('.btn-text').textContent = "🚀 Launch Autopilot Loop";
+    }
+
     stopBtn.addEventListener('click', () => {
-        chrome.tabs.sendMessage(tab.id, { action: "stop" });
+        if (browserDeepScan.checked) {
+            chrome.runtime.sendMessage({ action: "stop_grid_scan" });
+        } else {
+            chrome.tabs.sendMessage(tabData.id, { action: "stop" });
+        }
         stopBtn.classList.add('hidden');
         progressMessage.textContent = "Stopping...";
     });

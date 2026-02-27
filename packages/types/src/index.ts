@@ -38,6 +38,18 @@ export interface Lead {
         twitter?: string;
     } | null;
     enriched_at: string | null;
+    // Web Audit
+    website_audit: {
+        audited_at: string;
+        tech_stack: string[];
+        has_ssl: boolean;
+        domain_creation_date: string | null;
+        title: string | null;
+        meta_description: string | null;
+        headings: string[];
+        ai_flaws: string[];
+        ai_pitch: string | null;
+    } | null;
     // CRM fields
     search_query: string | null;
     lead_status: string;
@@ -70,9 +82,14 @@ export interface LeadFilter {
     status?: string;
     score?: string;
     minRating?: number;
+    maxRating?: number;
+    minReviews?: number;
     hasPhone?: boolean;
     hasWebsite?: boolean;
     hasEmail?: boolean;
+    missingWebsite?: boolean;
+    missingSocials?: boolean;
+    city?: string;
 }
 
 export interface PaginationParams {

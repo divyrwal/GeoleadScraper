@@ -14,7 +14,9 @@ import {
     BarChart3,
     Columns3,
     Copy,
+    Terminal,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const menuItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -22,6 +24,7 @@ const menuItems = [
     { name: "Leads", href: "/leads", icon: Users },
     { name: "Pipeline", href: "/pipeline", icon: Columns3 },
     { name: "Map View", href: "/map", icon: MapIcon },
+    { name: "Live Engine", href: "/live", icon: Terminal },
     { name: "Duplicates", href: "/duplicates", icon: Copy },
 ];
 
@@ -89,6 +92,9 @@ export function Sidebar() {
                         </Link>
                     );
                 })}
+                <div className="pt-2 mt-2 border-t border-border/50">
+                    <ThemeToggle />
+                </div>
             </div>
         </aside>
     );

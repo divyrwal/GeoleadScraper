@@ -53,9 +53,13 @@ export default function LeadsPage() {
             if (filters.score) params.score = filters.score;
             if (filters.category) params.category = filters.category;
             if (filters.minRating) params.minRating = String(filters.minRating);
+            if (filters.maxRating) params.maxRating = String(filters.maxRating);
+            if (filters.city) params.city = filters.city;
             if (filters.hasPhone) params.hasPhone = "true";
             if (filters.hasWebsite) params.hasWebsite = "true";
             if (filters.hasEmail) params.hasEmail = "true";
+            if (filters.missingWebsite) params.missingWebsite = "true";
+            if (filters.missingSocials) params.missingSocials = "true";
 
             const result = await api.getLeads(params);
             if (result.success) { setLeads(result.data); setPagination(result.pagination); }
@@ -82,6 +86,11 @@ export default function LeadsPage() {
         if (filters.search) params.search = filters.search;
         if (filters.status) params.status = filters.status;
         if (filters.score) params.score = filters.score;
+        if (filters.city) params.city = filters.city;
+        if (filters.maxRating) params.maxRating = String(filters.maxRating);
+        if (filters.missingWebsite) params.missingWebsite = "true";
+        if (filters.missingSocials) params.missingSocials = "true";
+        if (filters.hasPhone) params.hasPhone = "true";
         window.open(api.getExportUrl(params), "_blank");
     };
 
@@ -273,8 +282,8 @@ export default function LeadsPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge className={STATUS_STYLES[lead.lead_status] || "bg-slate-200 text-slate-700 capitalize"}>
-                                                    {lead.lead_status.replace(/_/g, " ")}
+                                                <Badge className={STATUS_STYLES[lead.lead_status || 'new'] || "bg-slate-200 text-slate-700 capitalize"}>
+                                                    {(lead.lead_status || 'new').replace(/_/g, " ")}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-right">

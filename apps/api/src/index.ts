@@ -17,6 +17,8 @@ import { leadsBulkRouter } from "./routes/leads-bulk";
 import { leadsDuplicatesRouter } from "./routes/leads-duplicates";
 import { scrapeSessionsRouter } from "./routes/scrape-sessions";
 import { leadsEnrichRouter } from "./routes/leads-enrich";
+import { advancedSearchRouter } from "./routes/advanced-search";
+import { leadsAuditRouter } from "./routes/leads-audit";
 
 const app = express();
 
@@ -27,6 +29,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use("/api/health", healthRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/analytics", analyticsRouter);
+app.use("/api/search", advancedSearchRouter);
 app.use("/api/scrape-sessions", scrapeSessionsRouter);
 app.use("/api/leads/export", leadsExportRouter);
 app.use("/api/leads/nearby", leadsNearbyRouter);
@@ -39,6 +42,7 @@ app.use("/api/leads", leadsEnrichRouter);
 app.use("/api/leads", leadsDetailRouter);    // /api/leads/:id, /api/leads/:id (PATCH)
 app.use("/api/leads", leadsContactRouter);  // /api/leads/:id/contact
 app.use("/api/leads", leadsAnalyzeRouter);  // /api/leads/:id/analyze
+app.use("/api/leads", leadsAuditRouter);    // /api/leads/:id/audit
 app.use("/api/leads", leadsRouter);          // /api/leads (GET, POST)
 
 app.listen(config.api.port, () => {

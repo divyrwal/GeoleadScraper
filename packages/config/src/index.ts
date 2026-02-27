@@ -17,4 +17,9 @@ export const config = {
         apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
         pageSize: parseInt(process.env.DEFAULT_PAGE_SIZE || "25"),
     },
+    cloudSync: {
+        enabled: process.env.ENABLE_CLOUD_SYNC === "true",
+        apiUrl: process.env.CLOUD_API_URL || "https://cloud.geolead.app",
+        apiKey: process.env.CLOUD_API_KEY || ""
+    }
 } as const;

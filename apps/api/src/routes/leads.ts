@@ -15,16 +15,52 @@ function buildFilter(query: Request["query"]) {
             { address: { $regex: query.search, $options: "i" } },
         ];
     }
+    if (query.city) {
+        const cityRegex = { $regex: query.city, $options: "i" };
+        const cityOr = [
+            { address: cityRegex },
+            { plus_code: cityRegex },
+            { search_query: cityRegex }
+        ];
+        if (filter.$or) {
+            filter.$and = [{ $or: filter.$or }, { $or: cityOr }];
+            delete filter.$or;
+        } else {
+            filter.$or = cityOr;
+        }
+    }
     if (query.category) filter.category = { $regex: query.category, $options: "i" };
     if (query.status) filter.lead_status = query.status;
     if (query.score) filter.lead_score = query.score;
-    if (query.minRating) filter.google_rating = { $gte: parseFloat(query.minRating as string) };
+
+    // Ratings & Reviews
+    if (query.minRating || query.maxRating) {
+        filter.google_rating = {};
+        if (query.minRating) (filter.google_rating as any).$gte = parseFloat(query.minRating as string);
+        if (query.maxRating) (filter.google_rating as any).$lte = parseFloat(query.maxRating as string);
+    }
+    if (query.minReviews) filter.review_count = { $gte: parseInt(query.minReviews as string) };
+
+    // Standard Booleans
     if (query.hasPhone === "true") filter.has_phone = true;
     if (query.hasPhone === "false") filter.has_phone = { $ne: true };
     if (query.hasWebsite === "true") filter.has_website = true;
     if (query.hasWebsite === "false") filter.has_website = { $ne: true };
     if (query.hasEmail === "true") filter.email = { $nin: [null, ""] };
     if (query.hasEmail === "false") filter.$or = [{ email: null }, { email: "" }];
+
+    // Pitch Target Booleans
+    if (query.missingWebsite === "true") filter.has_website = { $ne: true };
+    if (query.missingSocials === "true") {
+        // Find leads where social_links is null or missing key platforms
+        filter.$or = filter.$or || [];
+        (filter.$or as any[]).push(
+            { social_links: null },
+            { "social_links.instagram": { $exists: false } },
+            { "social_links.facebook": { $exists: false } }
+        );
+    }
+
     return filter;
 }
 
