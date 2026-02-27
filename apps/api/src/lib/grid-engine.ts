@@ -82,18 +82,33 @@ export async function geocodeLocation(location: string, jobId: string): Promise<
  */
 export function generateGridFromBox(box: BoundingBox, locationName: string, gridSize: number = 3, jobId: string): GridZone[] {
     broadcastLog(jobId, 'info', `[GridEngine] Slicing bounding box into a ${gridSize}x${gridSize} grid...`);
-    const zones: GridZone[] = [];
 
-    const latStep = (box.north - box.south) / gridSize;
-    const lngStep = (box.east - box.west) / gridSize;
+    // Pad the bounding box by 10% to capture businesses at city edges
+    const latRange = box.north - box.south;
+    const lngRange = box.east - box.west;
+    const padLat = latRange * 0.10;
+    const padLng = lngRange * 0.10;
+
+    const paddedBox = {
+        south: box.south - padLat,
+        north: box.north + padLat,
+        west: box.west - padLng,
+        east: box.east + padLng,
+    };
+
+    broadcastLog(jobId, 'info', `[GridEngine] Original bbox: ${latRange.toFixed(4)}° lat × ${lngRange.toFixed(4)}° lng → Padded +10%`);
+
+    const zones: GridZone[] = [];
+    const latStep = (paddedBox.north - paddedBox.south) / gridSize;
+    const lngStep = (paddedBox.east - paddedBox.west) / gridSize;
 
     // Start from the top-left (North-West) and work down to bottom-right
     let zoneCounter = 1;
     for (let row = 0; row < gridSize; row++) {
         for (let col = 0; col < gridSize; col++) {
             // Find the center of this specific sub-square
-            const cellCenterLat = box.north - (row * latStep) - (latStep / 2);
-            const cellCenterLng = box.west + (col * lngStep) + (lngStep / 2);
+            const cellCenterLat = paddedBox.north - (row * latStep) - (latStep / 2);
+            const cellCenterLng = paddedBox.west + (col * lngStep) + (lngStep / 2);
 
             zones.push({
                 center: { lat: cellCenterLat, lng: cellCenterLng },

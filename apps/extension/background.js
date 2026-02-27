@@ -11,6 +11,33 @@
 
 let apiUrl = 'http://localhost:4000';
 
+// ═══════════════════════════════════════════════════════
+// PERSISTENT DEBUG LOG — stores in chrome.storage for sharing
+// ═══════════════════════════════════════════════════════
+const MAX_LOG_ENTRIES = 200;
+
+async function debugLog(level, source, message, data = null) {
+    const entry = {
+        t: new Date().toISOString(),
+        lvl: level, // INFO, WARN, ERROR
+        src: source, // BG, CONTENT, SIDEBAR
+        msg: message,
+        ...(data ? { data: JSON.stringify(data).slice(0, 200) } : {})
+    };
+    try {
+        const result = await chrome.storage.local.get(['_debugLog']);
+        const log = result._debugLog || [];
+        log.push(entry);
+        if (log.length > MAX_LOG_ENTRIES) log.splice(0, log.length - MAX_LOG_ENTRIES);
+        await chrome.storage.local.set({ _debugLog: log });
+    } catch (e) { /* storage full or unavailable */ }
+}
+
+// ═══════════════════════════════════════════════════════
+// SIDE PANEL — Open sidebar on extension icon click
+// ═══════════════════════════════════════════════════════
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => { });
+
 // Grid Scanner State
 let gridQueue = [];
 let gridTotal = 0;
@@ -19,13 +46,16 @@ let currentTargetTabId = null;
 let currentExtractionSpeed = 300;
 let isGridScanning = false;
 let totalGridLeads = 0;
+let zoneInjected = false;
 
 // Cross-zone dedup
 let globalSeenIds = new Set();
+let globalSeenPhones = new Set();
+let zoneStartTime = 0;
 
 // Zone watchdog timer
 let zoneWatchdogTimer = null;
-const ZONE_TIMEOUT_MS = 120000; // 2 minutes per zone max
+const ZONE_TIMEOUT_MS = 120000;
 
 // Per-zone stats
 let zoneStats = [];
@@ -59,7 +89,7 @@ function startZoneWatchdog() {
     zoneWatchdogTimer = setTimeout(() => {
         if (!isGridScanning) return;
         const zoneIndex = gridTotal - gridQueue.length;
-        console.warn(`[GeoLead BG] Zone ${zoneIndex}/${gridTotal} timed out after ${ZONE_TIMEOUT_MS / 1000}s. Force-skipping.`);
+        debugLog('WARN', 'BG', `Zone ${zoneIndex}/${gridTotal} timed out after ${ZONE_TIMEOUT_MS / 1000}s. Force-skipping.`);
 
         chrome.runtime.sendMessage({
             type: "progress",
@@ -76,7 +106,13 @@ function startZoneWatchdog() {
 // MESSAGE RELAY
 // ═══════════════════════════════════════════════════════
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // Forward progress and lead messages to popup
+    // Handle debug log entries from content script
+    if (message.type === 'debug_log_entry') {
+        debugLog(message.level, message.source, message.message, message.data);
+        return false;
+    }
+
+    // Forward progress and lead messages to sidebar
     if (message.type === 'progress' || message.type === 'leads_batch' || message.type === 'extraction_done') {
 
         // Add accumulated grid totals to progress updates
@@ -84,12 +120,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (message.found !== undefined) message.found += totalGridLeads;
             if (message.scraped !== undefined) message.scraped += totalGridLeads;
 
-            // Prefix zone info to message
+            // Prefix zone info to message (only if not already prefixed)
             const zoneIndex = gridTotal - gridQueue.length;
-            if (message.message && !message.message.startsWith('[Zone')) {
+            if (message.message && !message.message.includes('[Zone')) {
                 message.message = `[Zone ${zoneIndex}/${gridTotal}] ${message.message}`;
             }
         }
+
+        // Tag so sidebar knows this is the authoritative relay (not raw content broadcast)
+        message._fromBg = true;
 
         // Intercept extraction_done during a grid scan
         if (message.type === 'extraction_done' && isGridScanning) {
@@ -97,6 +136,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             totalGridLeads += message.total_scraped || 0;
 
             const zoneIndex = gridTotal - gridQueue.length;
+            const zoneDuration = zoneStartTime ? Math.round((Date.now() - zoneStartTime) / 1000) : 0;
+            debugLog('INFO', 'BG', `Zone ${zoneIndex} done in ${zoneDuration}s: found=${message.total_found}, scraped=${message.total_scraped}, stopped=${message.stopped}`);
             zoneStats.push({
                 zone: zoneIndex,
                 found: message.total_found || 0,
@@ -104,7 +145,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
 
             if (message.stopped) {
-                // User manually stopped
                 isGridScanning = false;
                 gridQueue = [];
                 globalSeenIds.clear();
@@ -114,8 +154,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 setTimeout(() => nextGridZone(), 2000);
             }
         } else {
-            // Broadcast to popup
-            chrome.runtime.sendMessage(message).catch(() => { /* popup may be closed */ });
+            // Relay to sidebar
+            chrome.runtime.sendMessage(message).catch(() => { });
         }
     }
 
@@ -123,16 +163,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'leads_batch' && message.leads) {
         // Cross-zone dedup: filter out leads already seen in previous zones
         const uniqueLeads = message.leads.filter(lead => {
-            if (globalSeenIds.has(lead.google_place_id)) {
-                return false; // Already scraped in a previous zone
+            // Place ID dedup
+            if (lead.google_place_id && !lead.google_place_id.startsWith('gen_') && globalSeenIds.has(lead.google_place_id)) {
+                return false;
             }
-            globalSeenIds.add(lead.google_place_id);
+            // Phone dedup (catches same business from overlapping zones with different generated IDs)
+            if (lead.phone_number && globalSeenPhones.has(lead.phone_number)) {
+                return false;
+            }
+            if (lead.google_place_id) globalSeenIds.add(lead.google_place_id);
+            if (lead.phone_number) globalSeenPhones.add(lead.phone_number);
             return true;
         });
 
         const dupCount = message.leads.length - uniqueLeads.length;
         if (dupCount > 0) {
-            console.log(`[GeoLead BG] Filtered ${dupCount} cross-zone duplicates`);
+            debugLog('INFO', 'BG', `Filtered ${dupCount} cross-zone dupes from batch of ${message.leads.length}`);
         }
 
         if (uniqueLeads.length > 0) {
@@ -141,8 +187,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message.action === 'start_grid_scan') {
+        debugLog('INFO', 'BG', `Grid scan requested: q="${message.query}", loc="${message.location}", speed=${message.speed}, tab=${message.targetTabId}`);
         startGridScan(message.query, message.location, message.speed, message.targetTabId)
             .catch(err => {
+                debugLog('ERROR', 'BG', `Grid scan failed: ${err.message}`);
                 chrome.runtime.sendMessage({ type: "progress", status: "done", message: `❌ Error: ${err.message}` }).catch(() => { });
                 chrome.runtime.sendMessage({ type: "extraction_done", total_found: 0, total_scraped: 0 }).catch(() => { });
             });
@@ -163,7 +211,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.action === 'clear_dedup_cache') {
         globalSeenIds.clear();
+        debugLog('INFO', 'BG', 'Dedup cache cleared');
         sendResponse({ cleared: true, message: "Dedup cache cleared." });
+        return false;
+    }
+
+    if (message.action === 'get_debug_log') {
+        chrome.storage.local.get(['_debugLog'], (result) => {
+            sendResponse({ log: result._debugLog || [] });
+        });
+        return true; // async sendResponse
+    }
+
+    if (message.action === 'clear_debug_log') {
+        chrome.storage.local.set({ _debugLog: [] });
+        sendResponse({ cleared: true });
         return false;
     }
 
@@ -184,15 +246,16 @@ async function saveLeadsToApi(leads, searchQuery) {
 
         chrome.runtime.sendMessage({
             type: 'save_result',
+            _fromBg: true,
             inserted: result.inserted || 0,
             updated: result.updated || 0,
             skipped: result.skipped || 0,
             total: result.total || 0
         }).catch(() => { });
 
-        console.log(`[GeoLead BG] Saved ${result.inserted} leads, ${result.skipped} skipped`);
+        debugLog('INFO', 'BG', `API save: ${result.inserted} inserted, ${result.skipped} skipped, ${result.updated} updated`);
     } catch (err) {
-        console.error('[GeoLead BG] Failed to save leads:', err);
+        debugLog('ERROR', 'BG', `API save failed: ${err.message}`, { url: apiUrl });
     }
 }
 
@@ -207,6 +270,7 @@ async function startGridScan(query, location, speed, tabId) {
     currentTargetTabId = tabId;
     currentExtractionSpeed = speed;
     totalGridLeads = 0;
+    globalSeenPhones.clear();
     globalSeenIds.clear();
     zoneStats = [];
 
@@ -252,12 +316,14 @@ function nextGridZone() {
 
         chrome.runtime.sendMessage({
             type: "progress",
+            _fromBg: true,
             status: "done",
             message: `✅ GRID COMPLETE: ${totalGridLeads} unique leads from ${gridTotal} zones. [${zoneSummary}]`,
             found: totalGridLeads, scraped: totalGridLeads
         }).catch(() => { });
         chrome.runtime.sendMessage({
             type: "extraction_done",
+            _fromBg: true,
             total_found: totalGridLeads,
             total_scraped: totalGridLeads
         }).catch(() => { });
@@ -276,11 +342,12 @@ function nextGridZone() {
 
     const lat = zone.lat.toFixed(6);
     const lng = zone.lng.toFixed(6);
-    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(currentGridQuery)}/@${lat},${lng},14z`;
+    const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(currentGridQuery)}/@${lat},${lng},15z`;
 
+    zoneInjected = false;
+    zoneStartTime = Date.now();
     chrome.tabs.update(currentTargetTabId, { url: mapsUrl });
 
-    // Start the watchdog — if this zone doesn't complete in 120s, auto-skip
     startZoneWatchdog();
 }
 
@@ -288,8 +355,11 @@ function nextGridZone() {
 // TAB NAVIGATION LISTENER
 // ═══════════════════════════════════════════════════════
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (isGridScanning && tabId === currentTargetTabId && changeInfo.status === 'complete') {
+    // Only react to the FIRST 'complete' event per zone (Google Maps SPA fires many)
+    if (isGridScanning && tabId === currentTargetTabId && changeInfo.status === 'complete' && !zoneInjected) {
+        zoneInjected = true; // Lock — no more injections for this zone
         const zoneIndex = gridTotal - gridQueue.length;
+
         chrome.runtime.sendMessage({
             type: "progress",
             message: `[Zone ${zoneIndex}/${gridTotal}] 🗺 Maps loaded. Deploying scraper in 5s...`,
@@ -299,26 +369,35 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         // Wait 5s for Google Maps JS to finish rendering
         setTimeout(() => {
             if (!isGridScanning) return;
-            chrome.tabs.sendMessage(tabId, { action: "extract_all", speed: currentExtractionSpeed }, (response) => {
-                if (chrome.runtime.lastError) {
-                    console.warn("[GeoLead BG] First inject attempt failed, retrying in 3s...");
-                    setTimeout(() => {
-                        if (!isGridScanning) return;
-                        chrome.tabs.sendMessage(tabId, { action: "extract_all", speed: currentExtractionSpeed }, (retryResponse) => {
-                            if (chrome.runtime.lastError) {
-                                console.error("[GeoLead BG] Zone failed to inject. Skipping.");
-                                chrome.runtime.sendMessage({
-                                    type: "progress", status: "navigating",
-                                    message: `[Zone ${zoneIndex}/${gridTotal}] ⚠ Failed to inject. Skipping zone...`,
-                                    found: totalGridLeads, scraped: totalGridLeads
-                                }).catch(() => { });
-                                // Skip to next zone
-                                setTimeout(() => nextGridZone(), 1500);
-                            }
-                        });
-                    }, 3000);
-                }
+
+            // Force-reset content script in case previous zone's isExtracting is stuck
+            chrome.tabs.sendMessage(tabId, { action: "reset" }, () => {
+                if (chrome.runtime.lastError) { /* content script not ready yet */ }
             });
+
+            // Small delay after reset, then start extraction
+            setTimeout(() => {
+                if (!isGridScanning) return;
+                chrome.tabs.sendMessage(tabId, { action: "extract_all", speed: currentExtractionSpeed }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        debugLog('WARN', 'BG', `Zone ${zoneIndex} inject failed, retrying in 3s...`);
+                        setTimeout(() => {
+                            if (!isGridScanning) return;
+                            chrome.tabs.sendMessage(tabId, { action: "extract_all", speed: currentExtractionSpeed }, (retryResponse) => {
+                                if (chrome.runtime.lastError) {
+                                    debugLog('ERROR', 'BG', `Zone ${zoneIndex} inject failed after retry. Skipping.`);
+                                    chrome.runtime.sendMessage({
+                                        type: "progress", _fromBg: true, status: "navigating",
+                                        message: `[Zone ${zoneIndex}/${gridTotal}] ⚠ Failed to inject. Skipping zone...`,
+                                        found: totalGridLeads, scraped: totalGridLeads
+                                    }).catch(() => { });
+                                    setTimeout(() => nextGridZone(), 1500);
+                                }
+                            });
+                        }, 3000);
+                    }
+                });
+            }, 500);
         }, 5000);
     }
 });

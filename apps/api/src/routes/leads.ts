@@ -104,12 +104,14 @@ leadsRouter.post("/", async (req, res) => {
         let skipped = 0;
 
         for (const lead of leads) {
-            // 3-layer dedup: google_place_id → phone_number → business_name + address
+            // 3-layer dedup: google_place_id → business_name + address → phone_number
             const filter = lead.google_place_id && !lead.google_place_id.startsWith("gen_")
                 ? { google_place_id: lead.google_place_id }
                 : lead.business_name && lead.address
                     ? { business_name: lead.business_name, address: lead.address }
-                    : null;
+                    : lead.phone_number
+                        ? { phone_number: lead.phone_number }
+                        : null;
 
             const doc: Record<string, unknown> = {
                 ...lead,

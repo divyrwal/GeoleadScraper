@@ -1,19 +1,22 @@
 ﻿{
   "manifest_version": 3,
-  "name": "GeoLead Scraper",
-  "version": "1.0",
-  "description": "Extract business data from Google Maps",
+  "name": "GeoLead RECON",
+  "version": "5.1",
+  "description": "Tactical business data extraction from Google Maps",
   "permissions": [
     "activeTab",
     "storage",
-    "tabs"
+    "tabs",
+    "sidePanel"
   ],
   "host_permissions": [
     "https://www.google.com/maps/*",
     "http://localhost:4000/*"
   ],
+  "side_panel": {
+    "default_path": "sidebar.html"
+  },
   "action": {
-    "default_popup": "popup.html",
     "default_icon": "icons/icon128.png"
   },
   "content_scripts": [

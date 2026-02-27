@@ -36,6 +36,27 @@ body {
   line-height: 1.4;
 }
 
+/* Sidebar mode — fills full viewport */
+body.sidebar-mode {
+  width: 100%;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+body.sidebar-mode .container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body.sidebar-mode .terminal-log {
+  max-height: 250px;
+}
+
+body.sidebar-mode footer {
+  margin-top: auto;
+}
+
 /* Scanline overlay */
 body::after {
   content: '';

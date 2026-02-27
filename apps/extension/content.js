@@ -22,10 +22,46 @@ function sendMsg(data) {
     try { chrome.runtime.sendMessage(data); } catch (e) { /* bg may not be ready */ }
 }
 
+function contentLog(level, message, data = null) {
+    sendMsg({ type: 'debug_log_entry', level, source: 'CONTENT', message, ...(data ? { data } : {}) });
+}
+
 function getResultsFeed() {
     return document.querySelector('div.m6QErb[role="feed"]')
         || document.querySelector('div.m6QErb.DxyBCb')
         || document.querySelector('div.m6QErb');
+}
+
+/**
+ * Incrementally scroll the feed to ensure cards up to targetIndex are rendered.
+ * Google Maps lazy-loads ~7 cards per scroll. Returns the live feed element and card list.
+ */
+async function ensureCardsLoaded(targetIndex) {
+    let feed = getResultsFeed();
+    if (!feed) return { feed: null, cards: [] };
+
+    let cards = feed.querySelectorAll('div[role="article"]');
+    let staleCount = 0;
+    const MAX_SCROLL_ATTEMPTS = 30; // Max ~210 cards (30 × 7)
+
+    while (cards.length <= targetIndex && staleCount < MAX_SCROLL_ATTEMPTS) {
+        const prevCount = cards.length;
+        feed.scrollTop = feed.scrollHeight;
+        await sleep(400);
+
+        // Re-query feed (may have been recreated by Maps)
+        feed = getResultsFeed() || feed;
+        cards = feed.querySelectorAll('div[role="article"]');
+
+        if (cards.length === prevCount) {
+            staleCount++;
+            if (staleCount >= 3) break; // No new cards after 3 consecutive stale scrolls
+        } else {
+            staleCount = 0; // Reset — new cards loaded
+        }
+    }
+
+    return { feed, cards };
 }
 
 /**
@@ -283,6 +319,7 @@ async function extractAllLeads() {
     const feed = getResultsFeed();
     if (!feed) {
         isExtracting = false;
+        contentLog('ERROR', 'No results feed found on this page', { url: window.location.href });
         sendMsg({ type: "progress", status: "done", message: "No results feed found in this zone.", found: 0, scraped: 0 });
         sendMsg({ type: "extraction_done", total_found: 0, total_scraped: 0, stopped: false });
         return { started: false, error: "Could not find results panel." };
@@ -310,8 +347,20 @@ async function extractAllLeads() {
             feed.scrollTop = feed.scrollHeight;
             await sleep(800);
 
-            const endIndicator = feed.querySelector('.HlvSq') || document.querySelector('span.HlvSq');
-            if (endIndicator) break;
+            // Detect Google's "end of list" indicator (multiple selectors for robustness)
+            const endIndicator = feed.querySelector('.HlvSq')
+                || document.querySelector('span.HlvSq')
+                || feed.querySelector('.PbZDve')
+                || feed.querySelector('p.fontBodyMedium span');
+            if (endIndicator) {
+                // Also check for text-based end detection
+                const endText = endIndicator.textContent || '';
+                if (endText.includes('end of the list') || endText.includes('No more results')
+                    || endIndicator.classList.contains('HlvSq') || endIndicator.classList.contains('PbZDve')) {
+                    contentLog('INFO', `End of list detected at ${currentCount} results`);
+                    break;
+                }
+            }
 
             sendMsg({
                 type: "progress", status: "scrolling",
@@ -327,9 +376,11 @@ async function extractAllLeads() {
 
         // ═══════════════════════════════════════════════════════
         // PHASE 2: CLICK EACH CARD, EXTRACT DETAILS
+        // Re-query cards on each iteration to avoid stale DOM
         // ═══════════════════════════════════════════════════════
-        const allCards = feed.querySelectorAll('div[role="article"]');
-        totalCards = allCards.length;
+        let initialCards = feed.querySelectorAll('div[role="article"]');
+        totalCards = initialCards.length;
+        const localSeenNames = new Set(); // Name-based dedup for same business at different cards
 
         sendMsg({
             type: "progress", status: "extracting",
@@ -340,19 +391,29 @@ async function extractAllLeads() {
         for (let i = 0; i < totalCards; i++) {
             if (shouldStop) break;
 
-            const card = allCards[i];
+            // Ensure feed + cards are loaded up to our current index
+            // (Google Maps lazy-loads cards and may recreate the feed after panel navigation)
+            const { feed: liveFeed, cards: currentCards } = await ensureCardsLoaded(i);
+            if (!liveFeed || i >= currentCards.length) {
+                contentLog('WARN', `Card ${i} unreachable (${currentCards.length} rendered). Ending extraction.`);
+                break;
+            }
+            const card = currentCards[i];
+
             const basics = extractCardBasics(card);
             if (!basics) {
                 skipCount++;
                 continue;
             }
 
-            // Local dedup (within this zone)
-            if (localSeenIds.has(basics.google_place_id)) {
+            // Local dedup by place_id AND name
+            const nameKey = basics.business_name.toLowerCase().trim();
+            if (localSeenIds.has(basics.google_place_id) || localSeenNames.has(nameKey)) {
                 skipCount++;
                 continue;
             }
             localSeenIds.add(basics.google_place_id);
+            localSeenNames.add(nameKey);
 
             // Scroll card into view and click
             card.scrollIntoView({ behavior: 'instant', block: 'center' });
@@ -362,19 +423,23 @@ async function extractAllLeads() {
             clickTarget.click();
 
             // Wait for detail panel
-            const loaded = await waitForDetailPanel(basics.business_name);
+            let loaded = await waitForDetailPanel(basics.business_name);
+
+            // Click retry — if panel didn't load, try one more time
+            if (!loaded) {
+                contentLog('WARN', `Panel didn't load for ${basics.business_name}. Retrying click...`);
+                card.scrollIntoView({ behavior: 'instant', block: 'center' });
+                await sleep(300);
+                clickTarget.click();
+                loaded = await waitForDetailPanel(basics.business_name);
+            }
 
             let detail = {};
             if (loaded) {
-                // Stale DOM guard: verify we're looking at the right business
-                if (verifyPanelMatch(basics.business_name)) {
-                    detail = extractDetailFields();
-                } else {
-                    // Panel loaded but shows wrong business — extract anyway (data > nothing)
-                    detail = extractDetailFields();
-                }
+                detail = extractDetailFields();
             } else {
                 failCount++;
+                contentLog('WARN', `Panel failed after retry for ${basics.business_name}. Extracting basic info only.`);
             }
 
             // Merge card basics + detail panel data
@@ -426,19 +491,27 @@ async function extractAllLeads() {
             // Go back to list — hardened
             const backOk = await goBackToList();
             if (!backOk) {
-                // If we can't get back, try one more time after a longer wait
                 await sleep(1500);
                 const feed2 = getResultsFeed();
                 if (!feed2 || feed2.querySelectorAll('div[role="article"]').length === 0) {
+                    contentLog('WARN', `Lost navigation at ${i + 1}/${totalCards}. Attempting recovery.`);
                     sendMsg({
                         type: "progress", status: "extracting",
                         found: totalCards, scraped: allLeads.length,
                         message: `⚠ Lost navigation at ${i + 1}/${totalCards}. Recovering...`
                     });
-                    // Try clicking back button one more time
                     const backBtn = document.querySelector('button[aria-label="Back"]');
                     if (backBtn) backBtn.click();
                     await sleep(2000);
+                }
+            }
+
+            // Pre-load cards for next iteration (handles lazy-loading after Back navigation)
+            if (i + 1 < totalCards) {
+                const { feed: nextFeed, cards: nextCards } = await ensureCardsLoaded(i + 1);
+                if (nextFeed && nextCards[i + 1]) {
+                    nextCards[i + 1].scrollIntoView({ behavior: 'instant', block: 'center' });
+                    await sleep(100);
                 }
             }
 
@@ -466,7 +539,7 @@ async function extractAllLeads() {
         });
 
     } catch (err) {
-        console.error("[GeoLead Content] Extraction error:", err);
+        contentLog('ERROR', `Extraction crashed: ${err.message}`, { stack: err.stack?.slice(0, 300) });
         sendMsg({
             type: "progress", status: "done",
             message: `❌ ABORT: ${err.message}`,
@@ -492,11 +565,25 @@ async function extractAllLeads() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "extract_all" || request.action === "extract") {
         if (request.speed) extractionSpeed = request.speed;
-        // Force-reset state in case a previous run crashed
-        isExtracting = false;
+
+        // If already extracting, reject the duplicate request
+        if (isExtracting) {
+            console.warn("[GeoLead Content] Ignoring duplicate extract_all — already running.");
+            sendResponse({ started: false, error: "Already extracting" });
+            return false;
+        }
+
         shouldStop = false;
         sendResponse({ started: true });
         extractAllLeads();
+        return false;
+    }
+    if (request.action === "reset") {
+        // Force-clear extraction state (used by background between grid zones)
+        isExtracting = false;
+        shouldStop = true;
+        contentLog('INFO', 'State reset by background (zone transition)');
+        sendResponse({ reset: true });
         return false;
     }
     if (request.action === "stop") {
