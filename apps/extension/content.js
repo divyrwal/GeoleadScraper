@@ -223,154 +223,162 @@ async function extractAllLeads() {
     const feed = getResultsFeed();
     if (!feed) {
         isExtracting = false;
-        return { started: false, error: "Could not find results panel. Make sure Google Maps search results are visible." };
+        sendMsg({ type: "progress", status: "done", message: "No results found in this zone.", found: 0, scraped: 0 });
+        sendMsg({ type: "extraction_done", total_found: 0, total_scraped: 0, stopped: false });
+        return { started: false, error: "Could not find results panel." };
     }
 
     sendMsg({ type: "progress", status: "scrolling", found: 0, scraped: 0, message: "Starting extraction..." });
 
-    // --- Phase 1: Scroll to load all results ---
-    let lastCardCount = 0;
-    while (!shouldStop) {
-        const cards = feed.querySelectorAll('div[role="article"]');
-        const currentCount = cards.length;
+    try {
 
-        if (currentCount === lastCardCount) {
-            scrollAttempts++;
-            if (scrollAttempts >= MAX_SCROLL_ATTEMPTS) break;
-        } else {
-            scrollAttempts = 0;
+        // --- Phase 1: Scroll to load all results ---
+        let lastCardCount = 0;
+        while (!shouldStop) {
+            const cards = feed.querySelectorAll('div[role="article"]');
+            const currentCount = cards.length;
+
+            if (currentCount === lastCardCount) {
+                scrollAttempts++;
+                if (scrollAttempts >= MAX_SCROLL_ATTEMPTS) break;
+            } else {
+                scrollAttempts = 0;
+            }
+
+            lastCardCount = currentCount;
+            feed.scrollTop = feed.scrollHeight;
+            await sleep(1000);
+
+            const endIndicator = feed.querySelector('.HlvSq') || document.querySelector('span.HlvSq');
+            if (endIndicator) break;
+
+            sendMsg({ type: "progress", status: "scrolling", found: currentCount, scraped: 0, message: `Scrolling... ${currentCount} listings found` });
         }
 
-        lastCardCount = currentCount;
-        feed.scrollTop = feed.scrollHeight;
-        await sleep(1000);
-
-        const endIndicator = feed.querySelector('.HlvSq') || document.querySelector('span.HlvSq');
-        if (endIndicator) break;
-
-        sendMsg({ type: "progress", status: "scrolling", found: currentCount, scraped: 0, message: `Scrolling... ${currentCount} listings found` });
-    }
-
-    if (shouldStop) {
-        isExtracting = false;
-        sendMsg({ type: "extraction_done", total_found: lastCardCount, total_scraped: allLeads.length, stopped: true });
-        return { started: true, stopped: true };
-    }
-
-    // --- Phase 2: Click each card, extract details, send in batches ---
-    const allCards = feed.querySelectorAll('div[role="article"]');
-    const totalCards = allCards.length;
-    let failCount = 0;
-
-    sendMsg({ type: "progress", status: "extracting", found: totalCards, scraped: 0, message: `Extracting details from ${totalCards} listings...` });
-
-    for (let i = 0; i < totalCards; i++) {
-        if (shouldStop) break;
-
-        const card = allCards[i];
-        const basics = extractCardBasics(card);
-        if (!basics) continue;
-
-        if (seenIds.has(basics.google_place_id)) continue;
-        seenIds.add(basics.google_place_id);
-
-        // Scroll and click
-        card.scrollIntoView({ behavior: 'instant', block: 'center' });
-        await sleep(200);
-
-        const clickTarget = card.querySelector('a.hfpxzc') || card.querySelector('a.hfpx0') || card;
-        clickTarget.click();
-
-        // Wait for detail panel
-        const loaded = await waitForDetailPanel(basics.business_name);
-
-        let detail = {};
-        if (loaded) {
-            detail = extractDetailFields();
-        } else {
-            failCount++;
+        if (shouldStop) {
+            isExtracting = false;
+            sendMsg({ type: "extraction_done", total_found: lastCardCount, total_scraped: allLeads.length, stopped: true });
+            return { started: true, stopped: true };
         }
 
-        // Merge card basics + detail panel data
-        const lead = {
-            ...basics,
-            category: detail.category || null,
-            address: detail.address || null,
-            phone_number: detail.phone_number || null,
-            website_url: detail.website_url || null,
-            plus_code: detail.plus_code || null,
-            price_level: detail.price_level || null,
-            opening_hours: detail.opening_hours || null,
-            service_options: detail.service_options || [],
-            description: detail.description || null,
-            business_name: detail.business_name || basics.business_name,
-            google_rating: detail.google_rating ?? basics.google_rating,
-            review_count: detail.review_count ?? basics.review_count,
-        };
+        // --- Phase 2: Click each card, extract details, send in batches ---
+        const allCards = feed.querySelectorAll('div[role="article"]');
+        const totalCards = allCards.length;
+        let failCount = 0;
 
-        allLeads.push(lead);
-        pendingBatch.push(lead);
+        sendMsg({ type: "progress", status: "extracting", found: totalCards, scraped: 0, message: `Extracting details from ${totalCards} listings...` });
 
-        const hasPhone = !!lead.phone_number;
-        sendMsg({
-            type: "progress",
-            status: "extracting",
-            found: totalCards,
-            scraped: allLeads.length,
-            processed: i + 1,
-            message: `${i + 1}/${totalCards} — ${lead.business_name} ${hasPhone ? '📞' : '○'}${loaded ? '' : ' ⚠️'}`
-        });
+        for (let i = 0; i < totalCards; i++) {
+            if (shouldStop) break;
 
-        // Send batch to background for API saving
-        if (pendingBatch.length >= BATCH_SIZE) {
+            const card = allCards[i];
+            const basics = extractCardBasics(card);
+            if (!basics) continue;
+
+            if (seenIds.has(basics.google_place_id)) continue;
+            seenIds.add(basics.google_place_id);
+
+            // Scroll and click
+            card.scrollIntoView({ behavior: 'instant', block: 'center' });
+            await sleep(200);
+
+            const clickTarget = card.querySelector('a.hfpxzc') || card.querySelector('a.hfpx0') || card;
+            clickTarget.click();
+
+            // Wait for detail panel
+            const loaded = await waitForDetailPanel(basics.business_name);
+
+            let detail = {};
+            if (loaded) {
+                detail = extractDetailFields();
+            } else {
+                failCount++;
+            }
+
+            // Merge card basics + detail panel data
+            const lead = {
+                ...basics,
+                category: detail.category || null,
+                address: detail.address || null,
+                phone_number: detail.phone_number || null,
+                website_url: detail.website_url || null,
+                plus_code: detail.plus_code || null,
+                price_level: detail.price_level || null,
+                opening_hours: detail.opening_hours || null,
+                service_options: detail.service_options || [],
+                description: detail.description || null,
+                business_name: detail.business_name || basics.business_name,
+                google_rating: detail.google_rating ?? basics.google_rating,
+                review_count: detail.review_count ?? basics.review_count,
+            };
+
+            allLeads.push(lead);
+            pendingBatch.push(lead);
+
+            const hasPhone = !!lead.phone_number;
+            sendMsg({
+                type: "progress",
+                status: "extracting",
+                found: totalCards,
+                scraped: allLeads.length,
+                processed: i + 1,
+                message: `${i + 1}/${totalCards} — ${lead.business_name} ${hasPhone ? '📞' : '○'}${loaded ? '' : ' ⚠️'}`
+            });
+
+            // Send batch to background for API saving
+            if (pendingBatch.length >= BATCH_SIZE) {
+                sendMsg({
+                    type: "leads_batch",
+                    leads: [...pendingBatch],
+                    search_query: searchQuery,
+                    batch_number: Math.floor(allLeads.length / BATCH_SIZE)
+                });
+                pendingBatch.length = 0;
+            }
+
+            // Go back to list
+            const backOk = await goBackToList();
+            if (!backOk) {
+                await sleep(500);
+                const backBtn2 = document.querySelector('button[aria-label="Back"]');
+                if (backBtn2) backBtn2.click();
+                await sleep(800);
+            }
+        }
+
+        // Send remaining leads
+        if (pendingBatch.length > 0) {
             sendMsg({
                 type: "leads_batch",
                 leads: [...pendingBatch],
                 search_query: searchQuery,
-                batch_number: Math.floor(allLeads.length / BATCH_SIZE)
+                batch_number: Math.floor(allLeads.length / BATCH_SIZE) + 1
             });
             pendingBatch.length = 0;
         }
 
-        // Go back to list
-        const backOk = await goBackToList();
-        if (!backOk) {
-            await sleep(500);
-            const backBtn2 = document.querySelector('button[aria-label="Back"]');
-            if (backBtn2) backBtn2.click();
-            await sleep(800);
-        }
-    }
-
-    // Send remaining leads
-    if (pendingBatch.length > 0) {
         sendMsg({
-            type: "leads_batch",
-            leads: [...pendingBatch],
-            search_query: searchQuery,
-            batch_number: Math.floor(allLeads.length / BATCH_SIZE) + 1
+            type: "progress",
+            status: "done",
+            found: totalCards,
+            scraped: allLeads.length,
+            message: `Done! ${allLeads.length}/${totalCards} extracted. ${failCount > 0 ? `⚠️ ${failCount} partial.` : '✅ All complete.'}`
         });
-        pendingBatch.length = 0;
+
+    } catch (err) {
+        console.error("Extraction error:", err);
+        sendMsg({ type: "progress", status: "done", message: `Error: ${err.message}`, found: allLeads.length, scraped: allLeads.length });
+    } finally {
+        isExtracting = false;
+        sendMsg({
+            type: "extraction_done",
+            total_found: allLeads.length,
+            total_scraped: allLeads.length,
+            stopped: shouldStop
+        });
     }
 
-    isExtracting = false;
-
-    sendMsg({
-        type: "progress",
-        status: "done",
-        found: totalCards,
-        scraped: allLeads.length,
-        message: `Done! ${allLeads.length}/${totalCards} extracted. ${failCount > 0 ? `⚠️ ${failCount} partial.` : '✅ All complete.'}`
-    });
-
-    sendMsg({
-        type: "extraction_done",
-        total_found: totalCards,
-        total_scraped: allLeads.length,
-        stopped: shouldStop
-    });
-
-    return { started: true, total_found: totalCards, total_scraped: allLeads.length };
+    return { started: true, total_found: allLeads.length, total_scraped: allLeads.length };
 }
 
 // Message listener
@@ -378,6 +386,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "extract_all" || request.action === "extract") {
         // Accept speed from popup
         if (request.speed) extractionSpeed = request.speed;
+        // Reset state in case a previous run crashed leaving it true
+        isExtracting = false;
+        shouldStop = false;
         // Return immediately — don't hold the response channel
         sendResponse({ started: true });
         // Run extraction async (results sent via messages)

@@ -179,10 +179,19 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             if (!isGridScanning) return;
             chrome.tabs.sendMessage(tabId, { action: "extract_all", speed: currentExtractionSpeed }, (response) => {
                 if (chrome.runtime.lastError) {
+                    console.warn("[GeoLead] First inject failed, retrying...");
                     // If the content script hasn't fully injected yet, try once more
                     setTimeout(() => {
                         if (!isGridScanning) return;
-                        chrome.tabs.sendMessage(tabId, { action: "extract_all", speed: currentExtractionSpeed });
+                        chrome.tabs.sendMessage(tabId, { action: "extract_all", speed: currentExtractionSpeed }, (retryResponse) => {
+                            if (chrome.runtime.lastError) {
+                                console.error("[GeoLead] Grid Zone failed to inject script. Skipping to next zone.");
+                                chrome.runtime.sendMessage({ type: "progress", status: "navigating", message: "Failed to inject content script. Skipping zone...", found: totalGridLeads, scraped: totalGridLeads }).catch(() => { });
+
+                                // Fake extraction_done to keep the loop moving
+                                setTimeout(() => nextGridZone(), 1500);
+                            }
+                        });
                     }, 3000);
                 }
             });
