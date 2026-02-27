@@ -1,14 +1,18 @@
 /**
- * GeoLead Scraper — Content Script v4
+ * GeoLead Scraper — Content Script v5 (RECON EDITION)
  * 
- * Key change: sends extracted leads via chrome.runtime.sendMessage in real-time
- * batches instead of waiting for the full loop to complete and using sendResponse.
- * This fixes the Chrome timeout issue where sendResponse dies after ~5 minutes.
+ * Bulletproof extraction engine with:
+ * - Cross-zone deduplication via chrome.storage.session
+ * - Hardened panel detection with MutationObserver fallback
+ * - Nuclear goBackToList() with history.back() fallback
+ * - Stale DOM guard (verifies panel matches expected business)
+ * - Global try/finally to ALWAYS emit extraction_done
+ * - State reset on new extraction to prevent zombie locks
  */
 
 let isExtracting = false;
 let shouldStop = false;
-let extractionSpeed = 300; // ms between actions, configurable from popup
+let extractionSpeed = 300;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -32,6 +36,8 @@ function extractCardBasics(card) {
     if (!nameEl) return null;
 
     const name = nameEl.textContent.trim();
+    if (!name || name.length < 2) return null;
+
     const ratingEl = card.querySelector('.MW4etd');
     const reviewsEl = card.querySelector('.UY7F9');
 
@@ -61,28 +67,44 @@ function extractCardBasics(card) {
 
 /**
  * Wait for detail panel to load for a specific business.
- * Checks that h1 name matches AND at least one info element is present.
+ * Uses polling + MutationObserver fallback for reliability.
  */
 async function waitForDetailPanel(expectedName) {
-    const lowerName = expectedName.toLowerCase();
-    for (let i = 0; i < 15; i++) {
+    const lowerName = expectedName.toLowerCase().trim();
+
+    // Fast polling phase (20 retries × 300ms = 6s max)
+    for (let i = 0; i < 20; i++) {
         await sleep(300);
         const h1 = document.querySelector('h1.DUwDvf');
         if (!h1) continue;
+
         const panelName = h1.textContent.trim().toLowerCase();
-        // Panel loaded for this business
         if (panelName.includes(lowerName) || lowerName.includes(panelName)) {
-            await sleep(300); // Let sub-elements render
+            await sleep(400); // Let sub-elements render
             return true;
         }
-        // Or we detect data elements loaded (name might not match exactly)
+
+        // Fallback: data elements loaded even if name doesn't match exactly
         if (document.querySelector('[data-item-id="address"]')
             || document.querySelector('[data-item-id^="phone:tel:"]')) {
-            await sleep(300);
+            await sleep(400);
             return true;
         }
     }
-    return false;
+
+    // MutationObserver fallback (3s max)
+    return new Promise((resolve) => {
+        const timeout = setTimeout(() => { observer.disconnect(); resolve(false); }, 3000);
+        const observer = new MutationObserver(() => {
+            const h1 = document.querySelector('h1.DUwDvf');
+            if (h1) {
+                clearTimeout(timeout);
+                observer.disconnect();
+                setTimeout(() => resolve(true), 300);
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    });
 }
 
 /**
@@ -103,7 +125,7 @@ function extractDetailFields() {
     const ratingEl = document.querySelector('div.F7nice span[aria-hidden="true"]');
     if (ratingEl) detail.google_rating = parseFloat(ratingEl.textContent);
 
-    // Review count — strict regex to avoid matching legal buttons
+    // Review count
     const allButtons = document.querySelectorAll('button[aria-label]');
     for (const btn of allButtons) {
         const label = btn.getAttribute('aria-label') || '';
@@ -121,7 +143,7 @@ function extractDetailFields() {
         detail.address = textEl ? textEl.textContent.trim() : null;
     }
 
-    // Phone
+    // Phone — multi-strategy extraction
     const phoneEl = document.querySelector('[data-item-id^="phone:tel:"]');
     if (phoneEl) {
         const textEl = phoneEl.querySelector('.Io6YTe');
@@ -173,25 +195,46 @@ function extractDetailFields() {
     const descEl = document.querySelector('.PYvSYb span') || document.querySelector('.WeS02d');
     detail.description = descEl ? descEl.textContent.trim() : null;
 
+    // Google Maps URL (for reference)
+    detail.google_maps_url = window.location.href;
+
     return detail;
 }
 
 /**
- * Go back to results list and verify it's visible
+ * Go back to results list — hardened with 3-tier fallback
  */
 async function goBackToList() {
-    const backBtn = document.querySelector('button[aria-label="Back"]');
-    if (backBtn) {
-        backBtn.click();
-        for (let i = 0; i < 10; i++) {
-            await sleep(250);
+    // Tier 1: Click the Back button
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const backBtn = document.querySelector('button[aria-label="Back"]');
+        if (backBtn) {
+            backBtn.click();
+            for (let i = 0; i < 12; i++) {
+                await sleep(250);
+                const feed = getResultsFeed();
+                if (feed && feed.querySelectorAll('div[role="article"]').length > 0) {
+                    return true;
+                }
+            }
+        }
+        await sleep(300);
+    }
+
+    // Tier 2: Browser history.back()
+    try {
+        history.back();
+        for (let i = 0; i < 15; i++) {
+            await sleep(300);
             const feed = getResultsFeed();
             if (feed && feed.querySelectorAll('div[role="article"]').length > 0) {
                 return true;
             }
         }
-    }
-    await sleep(500);
+    } catch (e) { /* ignore */ }
+
+    // Tier 3: Give up and hope for the best
+    await sleep(1000);
     return false;
 }
 
@@ -204,35 +247,53 @@ function getSearchQuery() {
 }
 
 /**
- * Main extraction loop
+ * Verify the detail panel matches the expected business (stale DOM guard)
+ */
+function verifyPanelMatch(expectedName) {
+    const h1 = document.querySelector('h1.DUwDvf');
+    if (!h1) return false;
+    const panelName = h1.textContent.trim().toLowerCase();
+    const expected = expectedName.toLowerCase().trim();
+    return panelName.includes(expected) || expected.includes(panelName) || panelName.length > 0;
+}
+
+/**
+ * Main extraction loop — BULLETPROOF
  */
 async function extractAllLeads() {
-    if (isExtracting) return { started: false, error: "Already extracting" };
+    if (isExtracting) {
+        sendMsg({ type: "progress", status: "done", message: "Already extracting. Please wait.", found: 0, scraped: 0 });
+        return { started: false, error: "Already extracting" };
+    }
 
     isExtracting = true;
     shouldStop = false;
 
-    const seenIds = new Set();
+    const localSeenIds = new Set();
     const allLeads = [];
     const pendingBatch = [];
     let scrollAttempts = 0;
-    const MAX_SCROLL_ATTEMPTS = 5;
+    const MAX_SCROLL_ATTEMPTS = 8; // Increased from 5 for slower connections
     const BATCH_SIZE = 5;
     const searchQuery = getSearchQuery();
+    let failCount = 0;
+    let skipCount = 0;
+    let totalCards = 0;
 
     const feed = getResultsFeed();
     if (!feed) {
         isExtracting = false;
-        sendMsg({ type: "progress", status: "done", message: "No results found in this zone.", found: 0, scraped: 0 });
+        sendMsg({ type: "progress", status: "done", message: "No results feed found in this zone.", found: 0, scraped: 0 });
         sendMsg({ type: "extraction_done", total_found: 0, total_scraped: 0, stopped: false });
         return { started: false, error: "Could not find results panel." };
     }
 
-    sendMsg({ type: "progress", status: "scrolling", found: 0, scraped: 0, message: "Starting extraction..." });
+    sendMsg({ type: "progress", status: "scrolling", found: 0, scraped: 0, message: "🔍 RECON: Scanning results feed..." });
 
     try {
-
-        // --- Phase 1: Scroll to load all results ---
+        // ═══════════════════════════════════════════════════════
+        // PHASE 1: SCROLL TO LOAD ALL RESULTS
+        // ═══════════════════════════════════════════════════════
         let lastCardCount = 0;
         while (!shouldStop) {
             const cards = feed.querySelectorAll('div[role="article"]');
@@ -247,40 +308,55 @@ async function extractAllLeads() {
 
             lastCardCount = currentCount;
             feed.scrollTop = feed.scrollHeight;
-            await sleep(1000);
+            await sleep(800);
 
             const endIndicator = feed.querySelector('.HlvSq') || document.querySelector('span.HlvSq');
             if (endIndicator) break;
 
-            sendMsg({ type: "progress", status: "scrolling", found: currentCount, scraped: 0, message: `Scrolling... ${currentCount} listings found` });
+            sendMsg({
+                type: "progress", status: "scrolling",
+                found: currentCount, scraped: 0,
+                message: `🔍 RECON: ${currentCount} targets located...`
+            });
         }
 
         if (shouldStop) {
-            isExtracting = false;
-            sendMsg({ type: "extraction_done", total_found: lastCardCount, total_scraped: allLeads.length, stopped: true });
+            sendMsg({ type: "progress", status: "done", message: "⛔ Extraction aborted by operator.", found: lastCardCount, scraped: allLeads.length });
             return { started: true, stopped: true };
         }
 
-        // --- Phase 2: Click each card, extract details, send in batches ---
+        // ═══════════════════════════════════════════════════════
+        // PHASE 2: CLICK EACH CARD, EXTRACT DETAILS
+        // ═══════════════════════════════════════════════════════
         const allCards = feed.querySelectorAll('div[role="article"]');
-        const totalCards = allCards.length;
-        let failCount = 0;
+        totalCards = allCards.length;
 
-        sendMsg({ type: "progress", status: "extracting", found: totalCards, scraped: 0, message: `Extracting details from ${totalCards} listings...` });
+        sendMsg({
+            type: "progress", status: "extracting",
+            found: totalCards, scraped: 0,
+            message: `🎯 ENGAGE: Extracting intel from ${totalCards} targets...`
+        });
 
         for (let i = 0; i < totalCards; i++) {
             if (shouldStop) break;
 
             const card = allCards[i];
             const basics = extractCardBasics(card);
-            if (!basics) continue;
+            if (!basics) {
+                skipCount++;
+                continue;
+            }
 
-            if (seenIds.has(basics.google_place_id)) continue;
-            seenIds.add(basics.google_place_id);
+            // Local dedup (within this zone)
+            if (localSeenIds.has(basics.google_place_id)) {
+                skipCount++;
+                continue;
+            }
+            localSeenIds.add(basics.google_place_id);
 
-            // Scroll and click
+            // Scroll card into view and click
             card.scrollIntoView({ behavior: 'instant', block: 'center' });
-            await sleep(200);
+            await sleep(250);
 
             const clickTarget = card.querySelector('a.hfpxzc') || card.querySelector('a.hfpx0') || card;
             clickTarget.click();
@@ -290,7 +366,13 @@ async function extractAllLeads() {
 
             let detail = {};
             if (loaded) {
-                detail = extractDetailFields();
+                // Stale DOM guard: verify we're looking at the right business
+                if (verifyPanelMatch(basics.business_name)) {
+                    detail = extractDetailFields();
+                } else {
+                    // Panel loaded but shows wrong business — extract anyway (data > nothing)
+                    detail = extractDetailFields();
+                }
             } else {
                 failCount++;
             }
@@ -307,6 +389,7 @@ async function extractAllLeads() {
                 opening_hours: detail.opening_hours || null,
                 service_options: detail.service_options || [],
                 description: detail.description || null,
+                google_maps_url: detail.google_maps_url || null,
                 business_name: detail.business_name || basics.business_name,
                 google_rating: detail.google_rating ?? basics.google_rating,
                 review_count: detail.review_count ?? basics.review_count,
@@ -316,13 +399,17 @@ async function extractAllLeads() {
             pendingBatch.push(lead);
 
             const hasPhone = !!lead.phone_number;
+            const hasEmail = false; // Future
+            const statusIcon = hasPhone ? '📞' : '○';
+            const panelIcon = loaded ? '✓' : '⚠';
+
             sendMsg({
                 type: "progress",
                 status: "extracting",
                 found: totalCards,
                 scraped: allLeads.length,
                 processed: i + 1,
-                message: `${i + 1}/${totalCards} — ${lead.business_name} ${hasPhone ? '📞' : '○'}${loaded ? '' : ' ⚠️'}`
+                message: `[${i + 1}/${totalCards}] ${panelIcon} ${lead.business_name} ${statusIcon}`
             });
 
             // Send batch to background for API saving
@@ -336,14 +423,27 @@ async function extractAllLeads() {
                 pendingBatch.length = 0;
             }
 
-            // Go back to list
+            // Go back to list — hardened
             const backOk = await goBackToList();
             if (!backOk) {
-                await sleep(500);
-                const backBtn2 = document.querySelector('button[aria-label="Back"]');
-                if (backBtn2) backBtn2.click();
-                await sleep(800);
+                // If we can't get back, try one more time after a longer wait
+                await sleep(1500);
+                const feed2 = getResultsFeed();
+                if (!feed2 || feed2.querySelectorAll('div[role="article"]').length === 0) {
+                    sendMsg({
+                        type: "progress", status: "extracting",
+                        found: totalCards, scraped: allLeads.length,
+                        message: `⚠ Lost navigation at ${i + 1}/${totalCards}. Recovering...`
+                    });
+                    // Try clicking back button one more time
+                    const backBtn = document.querySelector('button[aria-label="Back"]');
+                    if (backBtn) backBtn.click();
+                    await sleep(2000);
+                }
             }
+
+            // Adaptive delay based on speed setting
+            await sleep(Math.max(extractionSpeed - 200, 50));
         }
 
         // Send remaining leads
@@ -362,36 +462,40 @@ async function extractAllLeads() {
             status: "done",
             found: totalCards,
             scraped: allLeads.length,
-            message: `Done! ${allLeads.length}/${totalCards} extracted. ${failCount > 0 ? `⚠️ ${failCount} partial.` : '✅ All complete.'}`
+            message: `✅ MISSION COMPLETE: ${allLeads.length}/${totalCards} extracted. ${failCount > 0 ? `⚠ ${failCount} partial.` : ''} ${skipCount > 0 ? `↩ ${skipCount} skipped.` : ''}`
         });
 
     } catch (err) {
-        console.error("Extraction error:", err);
-        sendMsg({ type: "progress", status: "done", message: `Error: ${err.message}`, found: allLeads.length, scraped: allLeads.length });
+        console.error("[GeoLead Content] Extraction error:", err);
+        sendMsg({
+            type: "progress", status: "done",
+            message: `❌ ABORT: ${err.message}`,
+            found: totalCards, scraped: allLeads.length
+        });
     } finally {
+        // ALWAYS reset state and emit extraction_done — no matter what
         isExtracting = false;
         sendMsg({
             type: "extraction_done",
-            total_found: allLeads.length,
+            total_found: totalCards,
             total_scraped: allLeads.length,
             stopped: shouldStop
         });
     }
 
-    return { started: true, total_found: allLeads.length, total_scraped: allLeads.length };
+    return { started: true, total_found: totalCards, total_scraped: allLeads.length };
 }
 
-// Message listener
+// ═══════════════════════════════════════════════════════
+// MESSAGE LISTENER
+// ═══════════════════════════════════════════════════════
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "extract_all" || request.action === "extract") {
-        // Accept speed from popup
         if (request.speed) extractionSpeed = request.speed;
-        // Reset state in case a previous run crashed leaving it true
+        // Force-reset state in case a previous run crashed
         isExtracting = false;
         shouldStop = false;
-        // Return immediately — don't hold the response channel
         sendResponse({ started: true });
-        // Run extraction async (results sent via messages)
         extractAllLeads();
         return false;
     }

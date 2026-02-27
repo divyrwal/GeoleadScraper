@@ -1,6 +1,11 @@
 /**
- * GeoLead Scraper — Popup Logic v3
- * Features: speed control, ETA, scrape history, message-based architecture
+ * GeoLead Scraper — Popup Logic v5 (RECON EDITION)
+ * 
+ * Features:
+ * - Live terminal log with scrolling green text
+ * - Fixed tab → tabData reference bug
+ * - Zone progress tracking for grid scans
+ * - Cross-zone dedup cache clear
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -22,6 +27,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const progressBar = document.getElementById('progress-bar');
     const progressMessage = document.getElementById('progress-message');
     const progressEta = document.getElementById('progress-eta');
+    const terminalSection = document.getElementById('terminal-section');
+    const terminalLog = document.getElementById('terminal-log');
 
     // Tabs
     const tabBrowser = document.getElementById('tab-browser');
@@ -36,6 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const launchAutopilotBtn = document.getElementById('launch-autopilot-btn');
     const srcGmaps = document.getElementById('src-gmaps');
     const srcJd = document.getElementById('src-jd');
+    const srcLinkedin = document.getElementById('src-linkedin');
     const srcInstagram = document.getElementById('src-instagram');
     const srcAi = document.getElementById('src-ai');
     const srcDeepScan = document.getElementById('src-deepscan');
@@ -58,15 +66,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     let totalSaved = 0;
     let totalDuplicates = 0;
     let extractionStartTime = null;
+    let terminalLines = [];
+    const MAX_TERMINAL_LINES = 50;
 
-    // Load settings
-    chrome.storage.local.get(['apiUrl', 'extractionSpeed'], (result) => {
+    // Get current tab info
+    const [tabData] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const isGoogleMaps = tabData?.url?.includes('google.com/maps');
+
+    // ═══════════════════════════════════════════════════════
+    // TERMINAL LOG
+    // ═══════════════════════════════════════════════════════
+    function addTerminalLine(text, type = '') {
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        terminalLines.push({ text: `[${timestamp}] ${text}`, type });
+        if (terminalLines.length > MAX_TERMINAL_LINES) terminalLines.shift();
+
+        terminalLog.innerHTML = terminalLines.map(l =>
+            `<div class="log-line ${l.type}">${escapeHtml(l.text)}</div>`
+        ).join('');
+        terminalLog.scrollTop = terminalLog.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // LOAD SETTINGS
+    // ═══════════════════════════════════════════════════════
+    chrome.storage.local.get(['apiUrl', 'extractionSpeed', 'browserQuery', 'browserLocation', 'browserDeepScan'], (result) => {
         if (result.apiUrl) apiUrlInput.value = result.apiUrl;
         if (result.extractionSpeed) {
             speedSlider.value = result.extractionSpeed;
             updateSpeedLabel(result.extractionSpeed);
         }
-        if (result.autoMax) autoMax.value = result.autoMax;
 
         if (result.browserQuery) browserQuery.value = result.browserQuery;
         if (result.browserLocation) browserLocation.value = result.browserLocation;
@@ -92,20 +125,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.target.checked) {
             browserGridInputs.classList.remove('hidden');
             extractBtn.disabled = false;
-            pageStatus.textContent = "Ready for Master Queue Grid Scan";
+            pageStatus.textContent = "Ready for Grid Scan deployment";
         } else {
             browserGridInputs.classList.add('hidden');
             if (isGoogleMaps) {
                 extractBtn.disabled = false;
-                pageStatus.textContent = "Ready to extract from Google Maps";
+                pageStatus.textContent = "Target acquired: Google Maps";
             } else {
                 extractBtn.disabled = true;
-                pageStatus.textContent = "Please open Google Maps search results";
+                pageStatus.textContent = "Navigate to Google Maps to begin";
             }
         }
     });
 
-    // Tab Switching Logic
+    // ═══════════════════════════════════════════════════════
+    // TAB SWITCHING
+    // ═══════════════════════════════════════════════════════
     function switchTab(tab) {
         if (tab === 'browser') {
             tabBrowser.classList.add('active');
@@ -118,7 +153,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             panelBrowser.classList.add('hidden');
             panelAutopilot.classList.remove('hidden');
 
-            // Auto-fill query based on current URL if empty
             if (!autoQuery.value && tabData && tabData.url.includes('google.com/maps')) {
                 const searchParam = tabData.url.match(/\/maps\/search\/(.+?)(?:\/|@|$)/);
                 if (searchParam) {
@@ -138,12 +172,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     tabBrowser.addEventListener('click', () => switchTab('browser'));
     tabAutopilot.addEventListener('click', () => switchTab('autopilot'));
 
+    // ═══════════════════════════════════════════════════════
+    // SPEED CONTROL
+    // ═══════════════════════════════════════════════════════
     function updateSpeedLabel(val) {
         const ms = parseInt(val);
-        if (ms <= 200) speedValue.textContent = 'Turbo';
-        else if (ms <= 400) speedValue.textContent = 'Normal';
-        else if (ms <= 700) speedValue.textContent = 'Careful';
-        else speedValue.textContent = 'Safe';
+        if (ms <= 200) speedValue.textContent = 'TURBO';
+        else if (ms <= 400) speedValue.textContent = 'NORMAL';
+        else if (ms <= 700) speedValue.textContent = 'CAREFUL';
+        else speedValue.textContent = 'STEALTH';
     }
 
     speedSlider.addEventListener('input', (e) => {
@@ -151,7 +188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         chrome.storage.local.set({ extractionSpeed: parseInt(e.target.value) });
     });
 
-    // Save autopilot form data on change
+    // Autopilot form save
     const saveAutoForm = () => {
         chrome.storage.local.set({
             autoQuery: autoQuery.value,
@@ -163,18 +200,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     autoLocation.addEventListener('input', saveAutoForm);
     autoMax.addEventListener('input', saveAutoForm);
 
-    const [tabData] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const isGoogleMaps = tabData?.url?.includes('google.com/maps');
-
+    // ═══════════════════════════════════════════════════════
+    // INITIAL STATE
+    // ═══════════════════════════════════════════════════════
     if (browserDeepScan && browserDeepScan.checked) {
         extractBtn.disabled = false;
-        pageStatus.textContent = "Ready for Master Queue Grid Scan";
+        pageStatus.textContent = "Ready for Grid Scan deployment";
     } else if (isGoogleMaps) {
         extractBtn.disabled = false;
-        pageStatus.textContent = "Ready to extract from Google Maps";
+        pageStatus.textContent = "Target acquired: Google Maps";
     } else {
         extractBtn.disabled = true;
-        pageStatus.textContent = "Please open Google Maps search results";
+        pageStatus.textContent = "Navigate to Google Maps to begin";
     }
 
     // Check API connection
@@ -182,7 +219,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch(`${apiUrlInput.value}/api/health`);
         if (response.ok) {
             statusDot.classList.add('online');
-            statusText.textContent = "Connected to API";
+            statusText.textContent = "API Online";
         } else { throw new Error(); }
     } catch (e) {
         statusDot.classList.add('offline');
@@ -192,13 +229,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load scrape history
     loadHistory();
 
-    // --- Listen for ALL messages ---
+    // ═══════════════════════════════════════════════════════
+    // MESSAGE LISTENER — ALL MESSAGES FROM BG/CONTENT
+    // ═══════════════════════════════════════════════════════
     chrome.runtime.onMessage.addListener((message) => {
         if (message.type === "progress") {
             progressSection.classList.remove('hidden');
+            terminalSection.classList.remove('hidden');
             foundCount.textContent = message.found || 0;
             scrapedCount.textContent = message.scraped || 0;
             progressMessage.textContent = message.message || "";
+
+            // Add to terminal log
+            if (message.message) {
+                let logType = '';
+                if (message.status === 'done') logType = message.message.includes('❌') ? 'error' : 'success';
+                else if (message.status === 'navigating') logType = 'info';
+                addTerminalLine(message.message, logType);
+            }
 
             if (message.processed && message.found) {
                 const pct = Math.round((message.processed / message.found) * 100);
@@ -211,9 +259,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const remaining = (message.found - message.processed) * perItem;
                     const mins = Math.floor(remaining / 60);
                     const secs = Math.floor(remaining % 60);
-                    progressEta.textContent = `⏱ ~${mins}m ${secs}s remaining | ${perItem.toFixed(1)}s/lead`;
+                    progressEta.textContent = `⏱ ~${mins}m ${secs}s remaining | ${perItem.toFixed(1)}s/target`;
                 }
             }
+
             if (message.status === "done") {
                 onExtractionComplete(message.found, message.scraped);
             }
@@ -224,6 +273,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             totalDuplicates += (message.updated || 0) + (message.skipped || 0);
             savedCount.textContent = totalSaved;
             dupCount.textContent = totalDuplicates;
+
+            if (message.inserted > 0) {
+                addTerminalLine(`💾 Saved ${message.inserted} leads (${message.skipped || 0} dupes filtered)`, 'success');
+            }
         }
 
         if (message.type === "extraction_done") {
@@ -231,29 +284,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // ═══════════════════════════════════════════════════════
+    // EXTRACTION COMPLETE
+    // ═══════════════════════════════════════════════════════
     function onExtractionComplete(found, scraped) {
         extractBtn.classList.remove('hidden');
         extractBtn.disabled = false;
-        extractBtn.querySelector('.btn-text').textContent = "Extract All Leads";
+        extractBtn.querySelector('.btn-text').textContent = "▶ Deploy Scanner";
         extractBtn.querySelector('.loader').classList.add('hidden');
         stopBtn.classList.add('hidden');
         resultsDiv.classList.remove('hidden');
         progressBar.style.width = '100%';
         progressEta.textContent = '';
-        progressMessage.textContent = 'Extraction Complete!';
+        progressMessage.textContent = '✅ Mission Complete';
 
-        // Save to history
-        if (found > 0) {
-            const searchParam = tab.url.match(/\/maps\/search\/(.+?)(?:\/|@|$)/);
-            const query = searchParam ? decodeURIComponent(searchParam[1].replace(/\+/g, ' ')) : 'Unknown';
+        addTerminalLine(`═══ MISSION COMPLETE: ${scraped} targets extracted ═══`, 'success');
+
+        // Save to history (FIX: use tabData instead of undefined tab)
+        if (found > 0 && tabData) {
+            const searchParam = tabData.url.match(/\/maps\/search\/(.+?)(?:\/|@|$)/);
+            const query = searchParam ? decodeURIComponent(searchParam[1].replace(/\+/g, ' ')) : 'Grid Scan';
             saveHistory(query, found || 0, scraped || 0, totalSaved);
         }
     }
 
+    // ═══════════════════════════════════════════════════════
+    // EXTRACT BUTTON
+    // ═══════════════════════════════════════════════════════
     extractBtn.addEventListener('click', async () => {
         totalSaved = 0;
         totalDuplicates = 0;
         extractionStartTime = Date.now();
+        terminalLines = [];
         savedCount.textContent = '0';
         dupCount.textContent = '0';
         foundCount.textContent = '0';
@@ -261,24 +323,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         extractBtn.disabled = true;
         extractBtn.querySelector('.loader').classList.remove('hidden');
-        extractBtn.querySelector('.btn-text').textContent = "Extracting...";
+        extractBtn.querySelector('.btn-text').textContent = "Deploying...";
         stopBtn.classList.remove('hidden');
         progressSection.classList.remove('hidden');
+        terminalSection.classList.remove('hidden');
         progressBar.style.width = '0%';
-        progressMessage.textContent = 'Starting...';
+        progressMessage.textContent = 'Initializing scanner...';
         progressEta.textContent = '';
         resultsDiv.classList.add('hidden');
+        terminalLog.innerHTML = '';
+
+        addTerminalLine('Scanner initialized. Deployment starting...', 'info');
 
         if (browserDeepScan.checked) {
             const query = browserQuery.value.trim();
             const location = browserLocation.value.trim();
             if (!query || !location) {
-                alert("Please fill in both Search Query and Target Location for Grid Scan.");
+                alert("Fill in both Search Query and Target Location for Grid Scan.");
                 onExtractionComplete(0, 0);
                 return;
             }
 
-            // Send to background to initiate the Master Queue
+            addTerminalLine(`Grid Scan: "${query}" in "${location}"`, 'info');
+
             chrome.runtime.sendMessage({
                 action: "start_grid_scan",
                 query,
@@ -286,9 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 speed: parseInt(speedSlider.value),
                 targetTabId: tabData.id
             }, (response) => {
-                if (chrome.runtime.lastError) {
-                    // Could be ignored as background script handles it returning async
-                }
+                if (chrome.runtime.lastError) { /* background handles async */ }
                 if (response && response.error) {
                     alert(response.error);
                     onExtractionComplete(0, 0);
@@ -297,6 +362,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        // Single page extraction
+        addTerminalLine('Single page extraction mode', 'info');
+
         try {
             chrome.tabs.sendMessage(tabData.id, {
                 action: "extract_all",
@@ -304,21 +372,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             }, (response) => {
                 if (chrome.runtime.lastError) {
                     onExtractionComplete(0, 0);
+                    addTerminalLine('Content script not loaded. Refresh the Maps page.', 'error');
                     alert("Content script not loaded. Refresh the Google Maps page and try again.");
                     return;
                 }
                 if (response && response.error) {
                     onExtractionComplete(0, 0);
+                    addTerminalLine(`Error: ${response.error}`, 'error');
                     alert(response.error);
                 }
             });
         } catch (err) {
             onExtractionComplete(0, 0);
+            addTerminalLine(`Fatal error: ${err.message}`, 'error');
             alert("Error: " + err.message);
         }
     });
 
-    // --- Autopilot Logic ---
+    // ═══════════════════════════════════════════════════════
+    // AUTOPILOT
+    // ═══════════════════════════════════════════════════════
     launchAutopilotBtn.addEventListener('click', async () => {
         const query = autoQuery.value.trim();
         const location = autoLocation.value.trim();
@@ -326,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!query || !location) {
             apError.classList.remove('hidden');
-            apErrorMsg.textContent = "Please fill in both query and location.";
+            apErrorMsg.textContent = "Fill in both query and location.";
             return;
         }
 
@@ -355,9 +428,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    query,
-                    location,
-                    sources,
+                    query, location, sources,
                     useLocalAi: srcAi.checked,
                     deepScan: srcDeepScan.checked,
                     maxResults
@@ -382,9 +453,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     function resetAutoBtn() {
         launchAutopilotBtn.disabled = false;
         launchAutopilotBtn.querySelector('.loader').classList.add('hidden');
-        launchAutopilotBtn.querySelector('.btn-text').textContent = "🚀 Launch Autopilot Loop";
+        launchAutopilotBtn.querySelector('.btn-text').textContent = "🚀 Launch Autopilot";
     }
 
+    // ═══════════════════════════════════════════════════════
+    // STOP / SETTINGS
+    // ═══════════════════════════════════════════════════════
     stopBtn.addEventListener('click', () => {
         if (browserDeepScan.checked) {
             chrome.runtime.sendMessage({ action: "stop_grid_scan" });
@@ -392,7 +466,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             chrome.tabs.sendMessage(tabData.id, { action: "stop" });
         }
         stopBtn.classList.add('hidden');
-        progressMessage.textContent = "Stopping...";
+        progressMessage.textContent = "⛔ Aborting...";
+        addTerminalLine('Abort signal sent. Stopping extraction...', 'error');
     });
 
     settingsBtn.addEventListener('click', () => settingsPanel.classList.toggle('hidden'));
@@ -404,7 +479,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // --- Scrape History ---
+    // ═══════════════════════════════════════════════════════
+    // SCRAPE HISTORY
+    // ═══════════════════════════════════════════════════════
     function loadHistory() {
         chrome.storage.local.get(['scrapeHistory'], (result) => {
             const history = result.scrapeHistory || [];
@@ -416,13 +493,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         chrome.storage.local.get(['scrapeHistory'], (result) => {
             const history = result.scrapeHistory || [];
             history.unshift({
-                query,
-                found,
-                scraped,
-                saved,
+                query, found, scraped, saved,
                 date: new Date().toISOString()
             });
-            // Keep only last 10
             chrome.storage.local.set({ scrapeHistory: history.slice(0, 10) }, () => {
                 renderHistory(history.slice(0, 10));
             });
@@ -432,15 +505,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderHistory(history) {
         const list = document.getElementById('history-list');
         if (history.length === 0) {
-            list.innerHTML = '<p class="sub-text">No scrapes yet</p>';
+            list.innerHTML = '<p class="sub-text">No missions yet</p>';
             return;
         }
         list.innerHTML = history.slice(0, 5).map(h => {
             const date = new Date(h.date);
             const timeStr = date.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
             return `<div class="history-item">
-                <div class="history-query">${h.query}</div>
-                <div class="history-meta">${h.saved || h.scraped}/${h.found} saved · ${timeStr}</div>
+                <div class="history-query">${escapeHtml(h.query)}</div>
+                <div class="history-meta">${h.saved || h.scraped}/${h.found} extracted · ${timeStr}</div>
             </div>`;
         }).join('');
     }

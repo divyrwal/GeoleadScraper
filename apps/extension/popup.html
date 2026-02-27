@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GeoLead Scraper</title>
+  <title>GeoLead RECON</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -12,16 +12,19 @@
   <div class="container">
     <header>
       <img src="icons/icon48.png" alt="Logo" class="logo">
-      <h1>GeoLead Scraper</h1>
+      <div>
+        <h1>GeoLead</h1>
+        <span class="version-tag">v5.0 RECON EDITION</span>
+      </div>
     </header>
 
     <!-- Tabs Container -->
     <div class="tabs-header">
-      <button id="tab-browser" class="tab-btn active">Browser Scrape</button>
-      <button id="tab-autopilot" class="tab-btn">Advanced Autopilot</button>
+      <button id="tab-browser" class="tab-btn active">Recon Scrape</button>
+      <button id="tab-autopilot" class="tab-btn">Autopilot</button>
     </div>
 
-    <!-- TAB 1: Browser Scrape (Current DOM Logic) -->
+    <!-- TAB 1: Browser Scrape -->
     <div id="panel-browser" class="tab-panel active">
       <div id="status-card" class="card">
         <div id="connection-status" class="status-indicator">
@@ -31,26 +34,24 @@
         <p id="page-status" class="sub-text">Checking Google Maps...</p>
       </div>
 
-      <!-- Advanced DOM Grid Search -->
-      <div class="card" style="margin-bottom: 12px;">
-        <label class="checkbox-label" style="color: #60a5fa; font-weight: 500;">
-          <input type="checkbox" id="browser-deepscan"> 🌍 Master Queue (Grid Search)
+      <!-- Grid Search Toggle -->
+      <div class="card" style="margin-bottom: 10px;">
+        <label class="checkbox-label grid-label">
+          <input type="checkbox" id="browser-deepscan"> 🌐 MASTER QUEUE (GRID SEARCH)
         </label>
 
         <div id="browser-grid-inputs" class="hidden"
-          style="margin-top: 12px; border-top: 1px solid #334155; padding-top: 12px;">
-          <p class="sub-text" style="font-size: 11px; margin-bottom: 8px;">
-            The extension will autonomously slice the location into 9 zones and navigate this tab through them.
+          style="margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 10px;">
+          <p class="sub-text" style="font-size: 10px; margin-bottom: 8px;">
+            Slices location into 9 geographic zones. Autonomously navigates and extracts from each zone.
           </p>
           <div class="form-group">
-            <label for="browser-query" style="font-size: 11px;">Search Query (What)</label>
-            <input type="text" id="browser-query" placeholder="e.g., Plumbers, Software Agencies"
-              style="font-size: 12px; padding: 6px;">
+            <label for="browser-query">Target Query</label>
+            <input type="text" id="browser-query" placeholder="e.g., Plumbers, Software Agencies">
           </div>
-          <div class="form-group" style="margin-top: 8px;">
-            <label for="browser-location" style="font-size: 11px;">Target Location (Where)</label>
-            <input type="text" id="browser-location" placeholder="e.g., Lucknow, Delhi"
-              style="font-size: 12px; padding: 6px;">
+          <div class="form-group">
+            <label for="browser-location">Target Location</label>
+            <input type="text" id="browser-location" placeholder="e.g., Texas, Mumbai">
           </div>
         </div>
       </div>
@@ -64,19 +65,19 @@
         <input type="range" id="speed-slider" min="150" max="1000" value="300" step="50" class="speed-slider">
         <div class="speed-labels">
           <span>Fast</span>
-          <span>Slow (safer)</span>
+          <span>Stealth</span>
         </div>
       </div>
 
       <div class="actions">
         <button id="extract-btn" class="primary-btn" disabled>
-          <span class="btn-text">Extract All Leads</span>
+          <span class="btn-text">▶ Deploy Scanner</span>
           <span class="loader hidden"></span>
         </button>
         <button id="stop-btn" class="danger-btn hidden">
-          <span>⏹ Stop Extraction</span>
+          <span>⛔ Abort Mission</span>
         </button>
-        <button id="settings-btn" class="secondary-btn">Settings</button>
+        <button id="settings-btn" class="secondary-btn">⚙ Settings</button>
       </div>
 
       <!-- Progress -->
@@ -84,8 +85,17 @@
         <div class="progress-bar-container">
           <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
         </div>
-        <p id="progress-message" class="progress-text">Starting...</p>
+        <p id="progress-message" class="progress-text">Initializing...</p>
         <p id="progress-eta" class="eta-text"></p>
+      </div>
+
+      <!-- Live Terminal -->
+      <div id="terminal-section" class="hidden">
+        <div class="terminal-header">
+          <div class="terminal-dots"><span></span><span></span><span></span></div>
+          <span class="terminal-title">Live Feed</span>
+        </div>
+        <div id="terminal-log" class="terminal-log"></div>
       </div>
 
       <!-- Results -->
@@ -104,26 +114,26 @@
             <span id="saved-count" class="stat-value text-green">0</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Duplicates</span>
+            <span class="stat-label">Dupes</span>
             <span id="dup-count" class="stat-value text-orange">0</span>
           </div>
         </div>
-        <a href="http://localhost:3000/leads" target="_blank" class="dashboard-link">View in Dashboard →</a>
+        <a href="http://localhost:3000/leads" target="_blank" class="dashboard-link">→ View Dashboard</a>
       </div>
 
       <!-- Scrape History -->
       <div id="history-section" class="card history-card">
-        <h3 class="history-title">Recent Scrapes</h3>
+        <h3 class="history-title">Mission History</h3>
         <div id="history-list" class="history-list">
-          <p class="sub-text">No scrapes yet</p>
+          <p class="sub-text">No missions yet</p>
         </div>
       </div>
     </div> <!-- End Panel Browser -->
 
-    <!-- TAB 2: Advanced Autopilot (API Driver) -->
+    <!-- TAB 2: Advanced Autopilot -->
     <div id="panel-autopilot" class="tab-panel hidden">
       <div class="card">
-        <p class="sub-text" style="margin-bottom: 12px;">Trigger the backend orchestrator directly. No mapping required.
+        <p class="sub-text" style="margin-bottom: 12px;">Trigger the backend orchestrator directly. No browser required.
         </p>
 
         <div class="form-group">
@@ -141,7 +151,7 @@
           <input type="number" id="auto-max" value="50" min="10" max="1000">
         </div>
 
-        <h3 class="history-title" style="margin-top: 16px;">Sources to Scrape:</h3>
+        <h3 class="history-title" style="margin-top: 14px;">Intel Sources:</h3>
         <div class="options-grid">
           <label class="checkbox-label"><input type="checkbox" id="src-gmaps" checked> Google Maps</label>
           <label class="checkbox-label"><input type="checkbox" id="src-jd"> JustDial</label>
@@ -153,11 +163,11 @@
           <label class="checkbox-label"><input type="checkbox" id="src-ai" checked> Use Local AI Data Cleaner</label>
         </div>
 
-        <div style="margin-bottom: 16px;" class="card speed-card">
-          <label class="checkbox-label" style="color: #60a5fa; font-weight: 500;">
-            <input type="checkbox" id="src-deepscan"> 🌍 Enable Deep Scan (Grid Search)
+        <div style="margin-bottom: 14px;" class="card speed-card">
+          <label class="checkbox-label grid-label">
+            <input type="checkbox" id="src-deepscan"> 🌐 Deep Scan (Grid Search)
           </label>
-          <p class="sub-text" style="margin-top: 6px; font-size: 11px;">
+          <p class="sub-text" style="margin-top: 6px; font-size: 10px;">
             Bypasses the 120-result limit by slicing the city into smaller geographic grids.
           </p>
         </div>
@@ -166,20 +176,20 @@
 
       <div class="actions">
         <button id="launch-autopilot-btn" class="primary-btn">
-          <span class="btn-text">🚀 Launch Autopilot Loop</span>
+          <span class="btn-text">🚀 Launch Autopilot</span>
           <span class="loader hidden"></span>
         </button>
       </div>
 
       <div id="autopilot-status" class="hidden" style="margin-top: 12px; text-align: center;">
-        <p class="text-green" style="font-weight: 600; font-size: 13px;">✅ Job Queued Successfully!</p>
-        <p class="sub-text" style="margin-top: 4px;">The background worker is now extracting. View incoming results on
-          the dashboard.</p>
-        <a href="http://localhost:3000/leads" target="_blank" class="dashboard-link" style="margin-top: 8px;">View
-          Dashboard →</a>
+        <p class="text-green" style="font-weight: 600; font-size: 12px;">✅ Job Queued Successfully!</p>
+        <p class="sub-text" style="margin-top: 4px;">Background worker is extracting. View incoming results on the
+          dashboard.</p>
+        <a href="http://localhost:3000/leads" target="_blank" class="dashboard-link" style="margin-top: 8px;">→ View
+          Dashboard</a>
       </div>
       <div id="autopilot-error" class="hidden" style="margin-top: 12px; text-align: center;">
-        <p class="text-orange" id="autopilot-error-msg" style="font-weight: 600; font-size: 13px;">Error</p>
+        <p class="text-red" id="autopilot-error-msg" style="font-weight: 600; font-size: 12px;">Error</p>
       </div>
     </div> <!-- End Panel Autopilot -->
 
@@ -189,11 +199,11 @@
         <label for="api-url">API Endpoint</label>
         <input type="text" id="api-url" value="http://localhost:4000">
       </div>
-      <button id="save-settings" class="small-btn">Save</button>
+      <button id="save-settings" class="small-btn secondary-btn">Save</button>
     </div>
 
     <footer>
-      <p>Version 3.0.0 | Real-time extraction with background saving</p>
+      <p>GeoLead RECON v5.0 | Tactical Extraction System</p>
     </footer>
   </div>
   <script src="popup.js"></script>
