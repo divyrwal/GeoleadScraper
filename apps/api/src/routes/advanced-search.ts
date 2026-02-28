@@ -95,11 +95,13 @@ advancedSearchRouter.get("/stream", (req, res) => {
 // Returns a set of geographic zones (grid) for a given location to power the Extension's Deep Scan
 advancedSearchRouter.get("/grid", async (req, res) => {
     try {
-        const { location } = req.query;
+        const { location, gridSize: gridSizeParam } = req.query;
         if (!location || typeof location !== 'string') {
             return res.status(400).json({ success: false, error: "Location query parameter is required." });
         }
 
+        // Clamp gridSize to 2-5 range
+        const gridSize = Math.min(5, Math.max(2, parseInt(gridSizeParam as string) || 3));
         const jobId = `grid_${Date.now()}`;
 
         // 1. Geocode location
@@ -108,8 +110,8 @@ advancedSearchRouter.get("/grid", async (req, res) => {
             return res.status(404).json({ success: false, error: `Could not find geographic coordinates for "${location}".` });
         }
 
-        // 2. Generate a 3x3 grid
-        const gridZones = generateGridFromBox(geoData.box, location, 3, jobId);
+        // 2. Generate NxN grid
+        const gridZones = generateGridFromBox(geoData.box, location, gridSize, jobId);
 
         // 3. Return coordinates + bounds for the Extension
         res.status(200).json({

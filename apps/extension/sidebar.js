@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ═══════════════════════════════════════════════════════
     // LOAD SETTINGS
     // ═══════════════════════════════════════════════════════
-    chrome.storage.local.get(['apiUrl', 'extractionSpeed', 'browserQuery', 'browserLocation', 'browserDeepScan'], (result) => {
+    chrome.storage.local.get(['apiUrl', 'extractionSpeed', 'browserQuery', 'browserLocation', 'browserDeepScan', 'browserGridSize'], (result) => {
         if (result.apiUrl) apiUrlInput.value = result.apiUrl;
         if (result.extractionSpeed) {
             speedSlider.value = result.extractionSpeed;
@@ -145,6 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (result.browserQuery) browserQuery.value = result.browserQuery;
         if (result.browserLocation) browserLocation.value = result.browserLocation;
+        if (result.browserGridSize) document.getElementById('browser-grid-size').value = result.browserGridSize;
         if (result.browserDeepScan) {
             browserDeepScan.checked = true;
             browserGridInputs.classList.remove('hidden');
@@ -155,11 +156,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         chrome.storage.local.set({
             browserQuery: browserQuery.value,
             browserLocation: browserLocation.value,
-            browserDeepScan: browserDeepScan.checked
+            browserDeepScan: browserDeepScan.checked,
+            browserGridSize: document.getElementById('browser-grid-size').value
         });
     };
     browserQuery.addEventListener('input', saveBrowserForm);
     browserLocation.addEventListener('input', saveBrowserForm);
+    document.getElementById('browser-grid-size').addEventListener('change', saveBrowserForm);
 
     browserDeepScan.addEventListener('change', (e) => {
         saveBrowserForm();
@@ -273,7 +276,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let logType = '';
                 if (message.status === 'done') logType = message.message.includes('❌') ? 'error' : 'success';
                 else if (message.status === 'navigating') logType = 'info';
-                addTerminalLine(message.message, logType);
+                // Don't spam terminal with scanning/searching status — only show in progress bar
+                if (message.status !== 'searching' && message.status !== 'scrolling') {
+                    addTerminalLine(message.message, logType);
+                }
             }
 
             if (message.processed && message.found) {
@@ -378,6 +384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             chrome.runtime.sendMessage({
                 action: "start_grid_scan",
                 query, location,
+                gridSize: parseInt(document.getElementById('browser-grid-size').value) || 3,
                 speed: parseInt(speedSlider.value),
                 targetTabId: tabData.id
             }, (response) => {

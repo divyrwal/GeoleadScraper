@@ -59,6 +59,9 @@ let gridBounds = null; // Bounding box from geocoding for geo-filtering
 let zoneWatchdogTimer = null;
 const ZONE_TIMEOUT_MS = 120000; // Base timeout (scales dynamically with zone size)
 let currentZoneTimeout = ZONE_TIMEOUT_MS;
+let lastActivityTime = Date.now();
+let activityWatchdogTimer = null;
+const ACTIVITY_TIMEOUT_MS = 90000; // 90s no-activity = force-skip
 
 // Per-zone stats
 let zoneStats = [];
@@ -72,6 +75,42 @@ chrome.storage.local.get(['apiUrl'], (result) => {
 chrome.storage.onChanged.addListener((changes) => {
     if (changes.apiUrl) apiUrl = changes.apiUrl.newValue;
 });
+
+/**
+ * Activity watchdog: force-skip if no leads_batch for 90s
+ */
+function startActivityWatchdog() {
+    clearActivityWatchdog();
+    lastActivityTime = Date.now();
+    activityWatchdogTimer = setInterval(() => {
+        if (!isGridScanning) { clearActivityWatchdog(); return; }
+        const elapsed = Math.round((Date.now() - lastActivityTime) / 1000);
+        if (elapsed >= ACTIVITY_TIMEOUT_MS / 1000) {
+            const zoneIndex = gridTotal - gridQueue.length;
+            debugLog('WARN', 'BG', `Zone ${zoneIndex} stalled — no activity for ${elapsed}s. Force-skipping.`);
+            chrome.runtime.sendMessage({
+                type: 'progress', _fromBg: true, status: 'navigating',
+                message: `⚠ Zone ${zoneIndex} stalled (${elapsed}s idle). Skipping...`,
+                found: totalGridLeads, scraped: totalGridLeads
+            }).catch(() => { });
+            clearActivityWatchdog();
+            // Send reset to content script
+            if (currentTargetTabId) {
+                chrome.tabs.sendMessage(currentTargetTabId, { action: 'stop' }).catch(() => { });
+            }
+            nextGridZone();
+        } else if (elapsed >= 45) {
+            debugLog('WARN', 'BG', `Zone activity warning: ${elapsed}s since last leads_batch`);
+        }
+    }, 15000); // Check every 15s
+}
+
+function clearActivityWatchdog() {
+    if (activityWatchdogTimer) {
+        clearInterval(activityWatchdogTimer);
+        activityWatchdogTimer = null;
+    }
+}
 
 /**
  * Clear the zone watchdog timer
@@ -127,6 +166,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // Forward progress and lead messages to sidebar
     if (message.type === 'progress' || message.type === 'leads_batch' || message.type === 'extraction_done') {
+        lastActivityTime = Date.now(); // Reset activity watchdog on any progress
 
         // Add accumulated grid totals to progress updates
         if (message.type === 'progress' && isGridScanning) {
@@ -156,6 +196,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Intercept extraction_done during a grid scan
         if (message.type === 'extraction_done' && isGridScanning) {
             clearZoneWatchdog();
+            clearActivityWatchdog();
             totalGridLeads += message.total_scraped || 0;
 
             const zoneIndex = gridTotal - gridQueue.length;
@@ -206,6 +247,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         // Reset watchdog on activity — scraper is still working
         resetZoneWatchdog();
+        lastActivityTime = Date.now();
 
         if (uniqueLeads.length > 0) {
             saveLeadsToApi(uniqueLeads, message.search_query);
@@ -213,8 +255,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message.action === 'start_grid_scan') {
-        debugLog('INFO', 'BG', `Grid scan requested: q="${message.query}", loc="${message.location}", speed=${message.speed}, tab=${message.targetTabId}`);
-        startGridScan(message.query, message.location, message.speed, message.targetTabId)
+        debugLog('INFO', 'BG', `Grid scan requested: q="${message.query}", loc="${message.location}", grid=${message.gridSize || 3}x${message.gridSize || 3}, speed=${message.speed}, tab=${message.targetTabId}`);
+        startGridScan(message.query, message.location, message.speed, message.targetTabId, message.gridSize || 3)
             .catch(err => {
                 debugLog('ERROR', 'BG', `Grid scan failed: ${err.message}`);
                 chrome.runtime.sendMessage({ type: "progress", status: "done", message: `❌ Error: ${err.message}` }).catch(() => { });
@@ -288,7 +330,7 @@ async function saveLeadsToApi(leads, searchQuery) {
 // ═══════════════════════════════════════════════════════
 // GRID SCAN ORCHESTRATOR
 // ═══════════════════════════════════════════════════════
-async function startGridScan(query, location, speed, tabId) {
+async function startGridScan(query, location, speed, tabId, gridSize = 3) {
     if (isGridScanning) throw new Error("A grid scan is already in progress.");
     isGridScanning = true;
     gridQueue = [];
@@ -303,11 +345,11 @@ async function startGridScan(query, location, speed, tabId) {
     chrome.runtime.sendMessage({
         type: "progress",
         status: "starting",
-        message: `🌐 RECON: Calculating geographic grid for "${location}"...`,
+        message: `🌐 RECON: Calculating ${gridSize}×${gridSize} geographic grid for "${location}"...`,
         found: 0, scraped: 0
     }).catch(() => { });
 
-    const res = await fetch(`${apiUrl}/api/search/grid?location=${encodeURIComponent(location)}`);
+    const res = await fetch(`${apiUrl}/api/search/grid?location=${encodeURIComponent(location)}&gridSize=${gridSize}`);
     const data = await res.json();
 
     if (!res.ok || !data.success) {
@@ -381,6 +423,7 @@ function nextGridZone() {
     chrome.tabs.update(currentTargetTabId, { url: mapsUrl });
 
     startZoneWatchdog(ZONE_TIMEOUT_MS); // Start with base timeout, scales when extraction begins
+    startActivityWatchdog();
 }
 
 // ═══════════════════════════════════════════════════════

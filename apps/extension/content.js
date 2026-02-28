@@ -1,19 +1,17 @@
 /**
- * GeoLead Scraper — Content Script v5 (RECON EDITION)
+ * GeoLead Scraper — Content Script v7 (SEQUENTIAL EDITION)
  * 
- * Bulletproof extraction engine with:
- * - Cross-zone deduplication via chrome.storage.session
- * - Hardened panel detection with MutationObserver fallback
- * - Nuclear goBackToList() with history.back() fallback
- * - Stale DOM guard (verifies panel matches expected business)
- * - Global try/finally to ALWAYS emit extraction_done
- * - State reset on new extraction to prevent zombie locks
+ * Simple, deterministic extraction:
+ * - Phase 1: Scroll to discover all results
+ * - Phase 2: Iterate by index (card 0, 1, 2...), fast-skip dupes by name
+ * - No complex search logic, no deep scroll searches
+ * - Every operation wrapped in try-catch with heartbeat
  */
 
 let isExtracting = false;
 let shouldStop = false;
 let extractionSpeed = 300;
-let activeBounds = null; // Geographic bounds for filtering {south, north, west, east}
+let activeBounds = null;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -33,45 +31,60 @@ function getResultsFeed() {
         || document.querySelector('div.m6QErb');
 }
 
+// ═══════════════════════════════════════════════════════
+// SCROLL HELPERS
+// ═══════════════════════════════════════════════════════
+
 /**
- * Incrementally scroll the feed to ensure cards up to targetIndex are rendered.
- * Google Maps lazy-loads ~7 cards per scroll. Returns the live feed element and card list.
+ * Scroll the feed until at least `targetCount` article cards are rendered.
+ * Returns the current card count. Max wait ~8 seconds.
  */
-async function ensureCardsLoaded(targetIndex) {
-    let feed = getResultsFeed();
-    if (!feed) return { feed: null, cards: [] };
-
+async function scrollFeedToIndex(feed, targetCount) {
     let cards = feed.querySelectorAll('div[role="article"]');
+    if (cards.length >= targetCount) return cards.length;
+
     let staleCount = 0;
-    const MAX_SCROLL_ATTEMPTS = 50; // Max ~350 cards (50 × 7)
-    const STALE_BREAK = 6; // Give up after 6 consecutive stale scrolls
-
-    while (cards.length <= targetIndex && staleCount < MAX_SCROLL_ATTEMPTS) {
+    for (let i = 0; i < 15; i++) {
         const prevCount = cards.length;
-
-        // Progressive scroll: half viewport first, then full, to trigger lazy-loading
-        feed.scrollTop = feed.scrollHeight - (feed.clientHeight / 2);
-        await sleep(200);
         feed.scrollTop = feed.scrollHeight;
+        await sleep(400);
 
-        // Progressive wait: longer waits on stale scrolls
-        const waitMs = staleCount > 2 ? 800 : staleCount > 0 ? 600 : 400;
-        await sleep(waitMs);
-
-        // Re-query feed (may have been recreated by Maps)
         feed = getResultsFeed() || feed;
         cards = feed.querySelectorAll('div[role="article"]');
 
+        if (cards.length >= targetCount) return cards.length;
+
         if (cards.length === prevCount) {
             staleCount++;
-            if (staleCount >= STALE_BREAK) break;
+            if (staleCount >= 4) return cards.length; // Can't load more
         } else {
-            staleCount = 0; // Reset — new cards loaded
+            staleCount = 0;
         }
     }
-
-    return { feed, cards };
+    return cards.length;
 }
+
+/**
+ * Scroll feed to top and wait for cards to appear.
+ */
+async function scrollReset(feed) {
+    feed.scrollTop = 0;
+    await sleep(600);
+    const cards = feed.querySelectorAll('div[role="article"]');
+    if (cards.length >= 3) return true;
+
+    // Wait a bit more
+    for (let i = 0; i < 5; i++) {
+        await sleep(400);
+        const f = getResultsFeed();
+        if (f && f.querySelectorAll('div[role="article"]').length >= 3) return true;
+    }
+    return false;
+}
+
+// ═══════════════════════════════════════════════════════
+// CARD DATA EXTRACTION
+// ═══════════════════════════════════════════════════════
 
 /**
  * Extract basic info visible on the list card (no click needed)
@@ -91,7 +104,7 @@ function extractCardBasics(card) {
 
     if (linkEl) {
         const url = linkEl.href || "";
-        const coordMatch = url.match(/!3d([-.\d]+)!4d([-.\d]+)/);
+        const coordMatch = url.match(/!3d([-.\\d]+)!4d([-.\\d]+)/);
         if (coordMatch) {
             lat = parseFloat(coordMatch[1]);
             lng = parseFloat(coordMatch[2]);
@@ -112,12 +125,10 @@ function extractCardBasics(card) {
 
 /**
  * Wait for detail panel to load for a specific business.
- * Uses polling + MutationObserver fallback for reliability.
  */
 async function waitForDetailPanel(expectedName) {
     const lowerName = expectedName.toLowerCase().trim();
 
-    // Fast polling phase (20 retries × 300ms = 6s max)
     for (let i = 0; i < 20; i++) {
         await sleep(300);
         const h1 = document.querySelector('h1.DUwDvf');
@@ -125,11 +136,10 @@ async function waitForDetailPanel(expectedName) {
 
         const panelName = h1.textContent.trim().toLowerCase();
         if (panelName.includes(lowerName) || lowerName.includes(panelName)) {
-            await sleep(400); // Let sub-elements render
+            await sleep(400);
             return true;
         }
 
-        // Fallback: data elements loaded even if name doesn't match exactly
         if (document.querySelector('[data-item-id="address"]')
             || document.querySelector('[data-item-id^="phone:tel:"]')) {
             await sleep(400);
@@ -158,19 +168,15 @@ async function waitForDetailPanel(expectedName) {
 function extractDetailFields() {
     const detail = {};
 
-    // Business name
     const nameEl = document.querySelector('h1.DUwDvf');
     if (nameEl) detail.business_name = nameEl.textContent.trim();
 
-    // Category
     const categoryEl = document.querySelector('button.DkEaL');
     detail.category = categoryEl ? categoryEl.textContent.trim() : null;
 
-    // Rating
     const ratingEl = document.querySelector('div.F7nice span[aria-hidden="true"]');
     if (ratingEl) detail.google_rating = parseFloat(ratingEl.textContent);
 
-    // Review count
     const allButtons = document.querySelectorAll('button[aria-label]');
     for (const btn of allButtons) {
         const label = btn.getAttribute('aria-label') || '';
@@ -181,14 +187,12 @@ function extractDetailFields() {
         }
     }
 
-    // Address
     const addressEl = document.querySelector('[data-item-id="address"]');
     if (addressEl) {
         const textEl = addressEl.querySelector('.Io6YTe');
         detail.address = textEl ? textEl.textContent.trim() : null;
     }
 
-    // Phone — multi-strategy extraction
     const phoneEl = document.querySelector('[data-item-id^="phone:tel:"]');
     if (phoneEl) {
         const textEl = phoneEl.querySelector('.Io6YTe');
@@ -204,22 +208,18 @@ function extractDetailFields() {
         if (telLink) detail.phone_number = telLink.getAttribute('href').replace('tel:', '').trim();
     }
 
-    // Website
     const websiteEl = document.querySelector('a[data-item-id="authority"]');
     if (websiteEl) detail.website_url = websiteEl.getAttribute('href') || null;
 
-    // Plus Code
     const plusCodeEl = document.querySelector('[data-item-id="oloc"]');
     if (plusCodeEl) {
         const textEl = plusCodeEl.querySelector('.Io6YTe');
         detail.plus_code = textEl ? textEl.textContent.trim() : null;
     }
 
-    // Price Level
     const priceEl = document.querySelector('span[aria-label*="Price"]');
     detail.price_level = priceEl ? priceEl.getAttribute('aria-label').replace('Price: ', '').trim() : null;
 
-    // Opening Hours
     const hoursEl = document.querySelector('.t39EBf') || document.querySelector('.OMl5r');
     if (hoursEl) {
         const ariaLabel = hoursEl.closest('[aria-label]')?.getAttribute('aria-label');
@@ -228,7 +228,6 @@ function extractDetailFields() {
         detail.opening_hours = null;
     }
 
-    // Service Options
     const serviceEls = document.querySelectorAll('.LTs0Rc');
     detail.service_options = [];
     for (const el of serviceEls) {
@@ -236,58 +235,64 @@ function extractDetailFields() {
         if (label) detail.service_options.push(label);
     }
 
-    // Description
     const descEl = document.querySelector('.PYvSYb span') || document.querySelector('.WeS02d');
     detail.description = descEl ? descEl.textContent.trim() : null;
 
-    // Google Maps URL (for reference)
     detail.google_maps_url = window.location.href;
 
     return detail;
 }
 
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+
 /**
  * Go back to results list — hardened with 3-tier fallback
  */
 async function goBackToList() {
-    // Pre-check: if feed is already visible (no panel open), return immediately
+    // Pre-check: if feed is already visible and no detail panel
     const existingFeed = getResultsFeed();
     if (existingFeed && existingFeed.querySelectorAll('div[role="article"]').length > 0) {
-        // Check that the detail panel is NOT covering the feed
-        const detailPanel = document.querySelector('h1.DUwDvf');
-        if (!detailPanel) return true;
+        const backBtn = document.querySelector('button[aria-label="Back"]') || document.querySelector('button[aria-label="back"]');
+        if (!backBtn) return true;
     }
 
-    // Tier 1: Click the Back button (3 attempts, 20×300ms = 6s polling each)
-    for (let attempt = 0; attempt < 3; attempt++) {
-        const backBtn = document.querySelector('button[aria-label="Back"]');
-        if (backBtn) {
+    // Tier 1: Click Back or Close button
+    const backSelectors = [
+        'button[aria-label="Back"]',
+        'button[aria-label="back"]',
+        'button[jsaction*="back"]',
+        'button.hYkMEe',
+        'button[aria-label="Close"]',
+        'button[data-value="Back"]'
+    ];
+    for (const sel of backSelectors) {
+        const backBtn = document.querySelector(sel);
+        if (backBtn && backBtn.offsetParent !== null) { // ensure visible
             backBtn.click();
-            for (let i = 0; i < 20; i++) {
+            for (let i = 0; i < 10; i++) {
                 await sleep(300);
                 const feed = getResultsFeed();
                 if (feed && feed.querySelectorAll('div[role="article"]').length > 0) {
-                    return true;
+                    if (!document.querySelector('button[aria-label="Back"]')) {
+                        return true;
+                    }
                 }
             }
+            break;
         }
-        await sleep(400);
     }
 
-    // Tier 2: Browser history.back() (20×400ms = 8s polling)
-    try {
-        history.back();
-        for (let i = 0; i < 20; i++) {
-            await sleep(400);
-            const feed = getResultsFeed();
-            if (feed && feed.querySelectorAll('div[role="article"]').length > 0) {
-                return true;
-            }
-        }
-    } catch (e) { /* ignore */ }
+    // Tier 2: Escape key
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+    await sleep(800);
+    const feed3 = getResultsFeed();
+    if (feed3 && feed3.querySelectorAll('div[role="article"]').length > 0 && !document.querySelector('button[aria-label="Back"]')) {
+        return true;
+    }
 
-    // Tier 3: Give up and hope for the best
-    await sleep(1500);
+    contentLog('ERROR', '[BACK:FAIL] All tiers failed');
     return false;
 }
 
@@ -300,27 +305,15 @@ function getSearchQuery() {
 }
 
 /**
- * Verify the detail panel matches the expected business (stale DOM guard)
- */
-function verifyPanelMatch(expectedName) {
-    const h1 = document.querySelector('h1.DUwDvf');
-    if (!h1) return false;
-    const panelName = h1.textContent.trim().toLowerCase();
-    const expected = expectedName.toLowerCase().trim();
-    return panelName.includes(expected) || expected.includes(panelName) || panelName.length > 0;
-}
-
-/**
  * Check if a lead's coordinates fall within the active geographic bounds.
- * Returns true if no bounds are set or if the lead is within bounds (with 15% tolerance).
  */
 function isWithinBounds(lat, lng) {
-    if (!activeBounds || (!lat && !lng)) return true; // No bounds or no coords — allow
-    if (lat === 0 && lng === 0) return true; // No real coords extracted — allow
+    if (!activeBounds || (!lat && !lng)) return true;
+    if (lat === 0 && lng === 0) return true;
 
     const latRange = activeBounds.north - activeBounds.south;
     const lngRange = activeBounds.east - activeBounds.west;
-    const tolerance = 0.15; // 15% tolerance beyond the bounding box
+    const tolerance = 0.15;
 
     return (
         lat >= activeBounds.south - (latRange * tolerance) &&
@@ -330,9 +323,9 @@ function isWithinBounds(lat, lng) {
     );
 }
 
-/**
- * Main extraction loop — BULLETPROOF
- */
+// ═══════════════════════════════════════════════════════
+// MAIN EXTRACTION — SEQUENTIAL INDEX-BASED
+// ═══════════════════════════════════════════════════════
 async function extractAllLeads() {
     if (isExtracting) {
         sendMsg({ type: "progress", status: "done", message: "Already extracting. Please wait.", found: 0, scraped: 0 });
@@ -342,26 +335,24 @@ async function extractAllLeads() {
     isExtracting = true;
     shouldStop = false;
 
-    const localSeenIds = new Set();
+    const processedNames = new Set();
+    const processedPlaceIds = new Set();
     const allLeads = [];
     const pendingBatch = [];
-    let scrollAttempts = 0;
-    const MAX_SCROLL_ATTEMPTS = 8; // Increased from 5 for slower connections
     const BATCH_SIZE = 5;
     const searchQuery = getSearchQuery();
     let failCount = 0;
     let skipCount = 0;
     let totalCards = 0;
     let consecutiveFailures = 0;
-    const MAX_CONSECUTIVE_FAILURES = 5;
 
-    const feed = getResultsFeed();
+    let feed = getResultsFeed();
     if (!feed) {
         isExtracting = false;
-        contentLog('ERROR', 'No results feed found on this page', { url: window.location.href });
-        sendMsg({ type: "progress", status: "done", message: "No results feed found in this zone.", found: 0, scraped: 0 });
+        contentLog('ERROR', '[INIT:FAIL] No results feed found');
+        sendMsg({ type: "progress", status: "done", message: "No results feed found.", found: 0, scraped: 0 });
         sendMsg({ type: "extraction_done", total_found: 0, total_scraped: 0, stopped: false });
-        return { started: false, error: "Could not find results panel." };
+        return { started: false, error: "No results feed." };
     }
 
     sendMsg({ type: "progress", status: "scrolling", found: 0, scraped: 0, message: "🔍 RECON: Scanning results feed..." });
@@ -371,13 +362,16 @@ async function extractAllLeads() {
         // PHASE 1: SCROLL TO LOAD ALL RESULTS
         // ═══════════════════════════════════════════════════════
         let lastCardCount = 0;
+        let scrollAttempts = 0;
+        const MAX_SCROLL = 8;
+
         while (!shouldStop) {
             const cards = feed.querySelectorAll('div[role="article"]');
             const currentCount = cards.length;
 
             if (currentCount === lastCardCount) {
                 scrollAttempts++;
-                if (scrollAttempts >= MAX_SCROLL_ATTEMPTS) break;
+                if (scrollAttempts >= MAX_SCROLL) break;
             } else {
                 scrollAttempts = 0;
             }
@@ -386,19 +380,13 @@ async function extractAllLeads() {
             feed.scrollTop = feed.scrollHeight;
             await sleep(800);
 
-            // Detect Google's "end of list" indicator (multiple selectors for robustness)
+            // Check for end-of-list indicator
             const endIndicator = feed.querySelector('.HlvSq')
                 || document.querySelector('span.HlvSq')
-                || feed.querySelector('.PbZDve')
-                || feed.querySelector('p.fontBodyMedium span');
+                || feed.querySelector('.PbZDve');
             if (endIndicator) {
-                // Also check for text-based end detection
-                const endText = endIndicator.textContent || '';
-                if (endText.includes('end of the list') || endText.includes('No more results')
-                    || endIndicator.classList.contains('HlvSq') || endIndicator.classList.contains('PbZDve')) {
-                    contentLog('INFO', `End of list detected at ${currentCount} results`);
-                    break;
-                }
+                contentLog('INFO', `[PHASE1] End of list at ${currentCount} results`);
+                break;
             }
 
             sendMsg({
@@ -409,17 +397,12 @@ async function extractAllLeads() {
         }
 
         if (shouldStop) {
-            sendMsg({ type: "progress", status: "done", message: "⛔ Extraction aborted by operator.", found: lastCardCount, scraped: allLeads.length });
+            sendMsg({ type: "progress", status: "done", message: "⛔ Aborted.", found: lastCardCount, scraped: 0 });
             return { started: true, stopped: true };
         }
 
-        // ═══════════════════════════════════════════════════════
-        // PHASE 2: CLICK EACH CARD, EXTRACT DETAILS
-        // Re-query cards on each iteration to avoid stale DOM
-        // ═══════════════════════════════════════════════════════
-        let initialCards = feed.querySelectorAll('div[role="article"]');
-        totalCards = initialCards.length;
-        const localSeenNames = new Set(); // Name-based dedup for same business at different cards
+        totalCards = lastCardCount;
+        contentLog('INFO', `[PHASE2] Starting sequential extraction of ${totalCards} targets`);
 
         sendMsg({
             type: "progress", status: "extracting",
@@ -427,169 +410,202 @@ async function extractAllLeads() {
             message: `🎯 ENGAGE: Extracting intel from ${totalCards} targets...`
         });
 
-        for (let i = 0; i < totalCards; i++) {
-            if (shouldStop) break;
+        // ═══════════════════════════════════════════════════════
+        // PHASE 2: SEQUENTIAL INDEX-BASED EXTRACTION
+        // ═══════════════════════════════════════════════════════
 
-            // Circuit-breaker: abort if too many consecutive failures
-            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                contentLog('ERROR', `${MAX_CONSECUTIVE_FAILURES} consecutive failures. Aborting extraction to avoid infinite stall.`);
+        // Scroll back to top to start from card 0
+        feed.scrollTop = 0;
+        await sleep(500);
+
+        let cardIndex = 0;
+        let lastProgressTime = Date.now();
+
+        while (cardIndex < totalCards && !shouldStop) {
+            // Circuit breaker: 5 consecutive click failures
+            if (consecutiveFailures >= 5) {
+                contentLog('ERROR', `[CIRCUIT_BREAK] ${consecutiveFailures} consecutive failures. Ending zone.`);
+                break;
+            }
+
+            // Heartbeat: send status every 10 seconds even during scrolling
+            if (Date.now() - lastProgressTime > 10000) {
                 sendMsg({
                     type: "progress", status: "extracting",
                     found: totalCards, scraped: allLeads.length,
-                    message: `⚠ ${MAX_CONSECUTIVE_FAILURES} consecutive failures — aborting zone early.`
+                    processed: cardIndex,
+                    message: `🔍 Processing card ${cardIndex + 1}/${totalCards}...`
                 });
-                break;
+                lastProgressTime = Date.now();
             }
 
-            // Ensure feed + cards are loaded up to our current index
-            // (Google Maps lazy-loads cards and may recreate the feed after panel navigation)
-            const { feed: liveFeed, cards: currentCards } = await ensureCardsLoaded(i);
-            if (!liveFeed || i >= currentCards.length) {
-                contentLog('WARN', `Card ${i} unreachable (${currentCards.length} rendered). Ending extraction.`);
-                break;
-            }
-            const card = currentCards[i];
+            try {
+                // 1. Ensure the card at this index is rendered
+                feed = getResultsFeed();
+                if (!feed) {
+                    contentLog('ERROR', '[FEED:LOST] Feed element disappeared');
+                    break;
+                }
 
-            const basics = extractCardBasics(card);
-            if (!basics) {
-                skipCount++;
-                continue;
-            }
+                // Scroll to make card visible
+                await scrollFeedToIndex(feed, cardIndex + 1);
+                feed = getResultsFeed() || feed;
+                let cards = feed.querySelectorAll('div[role="article"]');
 
-            // Local dedup by place_id AND name
-            const nameKey = basics.business_name.toLowerCase().trim();
-            if (localSeenIds.has(basics.google_place_id) || localSeenNames.has(nameKey)) {
-                skipCount++;
-                continue;
-            }
-            localSeenIds.add(basics.google_place_id);
-            localSeenNames.add(nameKey);
+                if (cardIndex >= cards.length) {
+                    // Can't scroll far enough — we've reached the end of what's loadable
+                    contentLog('INFO', `[PHASE2:END] Only ${cards.length} cards loadable, needed ${cardIndex + 1}. Ending.`);
+                    break;
+                }
 
-            // Geographic bounds filter — skip leads clearly outside target area
-            if (!isWithinBounds(basics.location_lat, basics.location_long)) {
-                skipCount++;
-                contentLog('INFO', `Skipping ${basics.business_name} — outside target area bounds`);
-                continue;
-            }
+                const card = cards[cardIndex];
+                if (!card) {
+                    cardIndex++;
+                    continue;
+                }
 
-            // Scroll card into view and click
-            card.scrollIntoView({ behavior: 'instant', block: 'center' });
-            await sleep(250);
+                // 2. Read card basics (no click needed)
+                const basics = extractCardBasics(card);
+                if (!basics) {
+                    cardIndex++;
+                    continue;
+                }
 
-            const clickTarget = card.querySelector('a.hfpxzc') || card.querySelector('a.hfpx0') || card;
-            clickTarget.click();
+                const nameKey = basics.business_name.toLowerCase().trim();
 
-            // Wait for detail panel
-            let loaded = await waitForDetailPanel(basics.business_name);
+                // 3. FAST NAME SKIP — no click, no panel, instant
+                if (processedNames.has(nameKey)) {
+                    cardIndex++;
+                    continue;
+                }
 
-            // Click retry — if panel didn't load, try one more time
-            if (!loaded) {
-                contentLog('WARN', `Panel didn't load for ${basics.business_name}. Retrying click...`);
+                // 4. Place ID dedup
+                if (basics.google_place_id && !basics.google_place_id.startsWith('gen_') && processedPlaceIds.has(basics.google_place_id)) {
+                    processedNames.add(nameKey);
+                    skipCount++;
+                    cardIndex++;
+                    continue;
+                }
+
+                // 5. Geographic bounds filter
+                if (!isWithinBounds(basics.location_lat, basics.location_long)) {
+                    processedNames.add(nameKey);
+                    skipCount++;
+                    cardIndex++;
+                    continue;
+                }
+
+                // Mark as processed
+                processedNames.add(nameKey);
+                if (basics.google_place_id) processedPlaceIds.add(basics.google_place_id);
+
+                // 6. CLICK THE CARD — scroll into view first
                 card.scrollIntoView({ behavior: 'instant', block: 'center' });
-                await sleep(300);
+                await sleep(200);
+
+                const clickTarget = card.querySelector('a.hfpxzc')
+                    || card.querySelector('a.hfpx0')
+                    || card.querySelector('div.lI9IFe')
+                    || card;
                 clickTarget.click();
-                loaded = await waitForDetailPanel(basics.business_name);
-            }
 
-            let detail = {};
-            if (loaded) {
-                detail = extractDetailFields();
-                consecutiveFailures = 0; // Reset on success
-            } else {
-                failCount++;
-                consecutiveFailures++;
-                contentLog('WARN', `Panel failed after retry for ${basics.business_name}. Consecutive failures: ${consecutiveFailures}`);
-            }
+                // 7. WAIT FOR PANEL
+                let loaded = await waitForDetailPanel(basics.business_name);
 
-            // Merge card basics + detail panel data
-            const lead = {
-                ...basics,
-                category: detail.category || null,
-                address: detail.address || null,
-                phone_number: detail.phone_number || null,
-                website_url: detail.website_url || null,
-                plus_code: detail.plus_code || null,
-                price_level: detail.price_level || null,
-                opening_hours: detail.opening_hours || null,
-                service_options: detail.service_options || [],
-                description: detail.description || null,
-                google_maps_url: detail.google_maps_url || null,
-                business_name: detail.business_name || basics.business_name,
-                google_rating: detail.google_rating ?? basics.google_rating,
-                review_count: detail.review_count ?? basics.review_count,
-            };
+                // Retry once
+                if (!loaded) {
+                    contentLog('WARN', `[CLICK:RETRY] Panel didn't load for ${basics.business_name}`);
+                    card.scrollIntoView({ behavior: 'instant', block: 'center' });
+                    await sleep(300);
+                    clickTarget.click();
+                    loaded = await waitForDetailPanel(basics.business_name);
+                }
 
-            allLeads.push(lead);
-            pendingBatch.push(lead);
+                // 8. EXTRACT DATA
+                let detail = {};
+                if (loaded) {
+                    detail = extractDetailFields();
+                    consecutiveFailures = 0;
+                    contentLog('INFO', `[CLICK:OK] ${basics.business_name} — panel loaded`);
+                } else {
+                    failCount++;
+                    consecutiveFailures++;
+                    contentLog('WARN', `[CLICK:FAIL] ${basics.business_name} — panel failed (consecutive: ${consecutiveFailures})`);
+                }
 
-            const hasPhone = !!lead.phone_number;
-            const hasEmail = false; // Future
-            const statusIcon = hasPhone ? '📞' : '○';
-            const panelIcon = loaded ? '✓' : '⚠';
+                // Merge card + detail data
+                const lead = {
+                    ...basics,
+                    category: detail.category || null,
+                    address: detail.address || null,
+                    phone_number: detail.phone_number || null,
+                    website_url: detail.website_url || null,
+                    plus_code: detail.plus_code || null,
+                    price_level: detail.price_level || null,
+                    opening_hours: detail.opening_hours || null,
+                    service_options: detail.service_options || [],
+                    description: detail.description || null,
+                    google_maps_url: detail.google_maps_url || null,
+                    business_name: detail.business_name || basics.business_name,
+                    google_rating: detail.google_rating ?? basics.google_rating,
+                    review_count: detail.review_count ?? basics.review_count,
+                };
 
-            sendMsg({
-                type: "progress",
-                status: "extracting",
-                found: totalCards,
-                scraped: allLeads.length,
-                processed: i + 1,
-                message: `[${i + 1}/${totalCards}] ${panelIcon} ${lead.business_name} ${statusIcon}`
-            });
+                allLeads.push(lead);
+                pendingBatch.push(lead);
+                lastProgressTime = Date.now();
 
-            // Send batch to background for API saving
-            if (pendingBatch.length >= BATCH_SIZE) {
+                const hasPhone = !!lead.phone_number;
+                const statusIcon = hasPhone ? '📞' : '○';
+
                 sendMsg({
-                    type: "leads_batch",
-                    leads: [...pendingBatch],
-                    search_query: searchQuery,
-                    batch_number: Math.floor(allLeads.length / BATCH_SIZE)
+                    type: "progress", status: "extracting",
+                    found: totalCards, scraped: allLeads.length,
+                    processed: cardIndex + 1,
+                    message: `[${allLeads.length}/${totalCards}] ✓ ${lead.business_name} ${statusIcon}`
                 });
-                pendingBatch.length = 0;
-            }
 
-            // Go back to list — hardened
-            const backOk = await goBackToList();
-            if (!backOk) {
-                consecutiveFailures++;
-                await sleep(1500);
-                const feed2 = getResultsFeed();
-                if (!feed2 || feed2.querySelectorAll('div[role="article"]').length === 0) {
-                    contentLog('WARN', `Lost navigation at ${i + 1}/${totalCards}. Consecutive failures: ${consecutiveFailures}. Attempting recovery.`);
+                // Send batch to background for API saving
+                if (pendingBatch.length >= BATCH_SIZE) {
                     sendMsg({
-                        type: "progress", status: "extracting",
-                        found: totalCards, scraped: allLeads.length,
-                        message: `⚠ Lost navigation at ${i + 1}/${totalCards}. Recovering...`
+                        type: "leads_batch",
+                        leads: [...pendingBatch],
+                        search_query: searchQuery,
+                        batch_number: Math.floor(allLeads.length / BATCH_SIZE)
                     });
-                    // Try history.back as emergency fallback
-                    try { history.back(); } catch (e) { /* ignore */ }
-                    await sleep(2500);
-                    // One more check
-                    const feed3 = getResultsFeed();
-                    if (!feed3 || feed3.querySelectorAll('div[role="article"]').length === 0) {
-                        const backBtn = document.querySelector('button[aria-label="Back"]');
-                        if (backBtn) backBtn.click();
-                        await sleep(2000);
+                    pendingBatch.length = 0;
+                }
+
+                // 9. GO BACK TO LIST
+                const backOk = await goBackToList();
+                if (!backOk) {
+                    consecutiveFailures++;
+                    contentLog('WARN', `[BACK:FAIL] Lost nav after ${basics.business_name} (consecutive: ${consecutiveFailures})`);
+                    // Try emergency recovery
+                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+                    await sleep(2000);
+                    const recoveredFeed = getResultsFeed();
+                    if (!recoveredFeed || recoveredFeed.querySelectorAll('div[role="article"]').length === 0) {
+                        contentLog('ERROR', '[RECOVERY:FAIL] Cannot recover feed. Ending zone.');
+                        break;
                     }
+                } else {
+                    if (consecutiveFailures > 0 && loaded) consecutiveFailures = 0;
                 }
-            } else {
-                // Successful navigation back resets consecutive failures
-                if (consecutiveFailures > 0 && loaded) consecutiveFailures = 0;
+
+                // Brief stabilization
+                await sleep(Math.max(extractionSpeed - 200, 50));
+
+            } catch (cardErr) {
+                contentLog('ERROR', `[CARD:ERROR] Card ${cardIndex}: ${cardErr.message}`);
+                consecutiveFailures++;
+                if (consecutiveFailures >= 5) break;
             }
 
-            // Pre-load cards for next iteration (handles lazy-loading after Back navigation)
-            if (i + 1 < totalCards) {
-                const { feed: nextFeed, cards: nextCards } = await ensureCardsLoaded(i + 1);
-                if (nextFeed && nextCards[i + 1]) {
-                    nextCards[i + 1].scrollIntoView({ behavior: 'instant', block: 'center' });
-                    await sleep(100);
-                }
-            }
-
-            // Adaptive delay based on speed setting
-            await sleep(Math.max(extractionSpeed - 200, 50));
+            cardIndex++;
         }
 
-        // Send remaining leads
+        // Send remaining batch
         if (pendingBatch.length > 0) {
             sendMsg({
                 type: "leads_batch",
@@ -600,23 +616,26 @@ async function extractAllLeads() {
             pendingBatch.length = 0;
         }
 
+        const unreachable = Math.max(0, totalCards - cardIndex);
+        const summary = `✅ ZONE COMPLETE: ${allLeads.length} extracted, ${skipCount} skipped`
+            + (unreachable > 0 ? `, ${unreachable} unreachable` : '')
+            + (failCount > 0 ? ` | ${failCount} partial` : '') + '.';
+
+        contentLog('INFO', `[DONE] ${summary}`);
         sendMsg({
-            type: "progress",
-            status: "done",
-            found: totalCards,
-            scraped: allLeads.length,
-            message: `✅ MISSION COMPLETE: ${allLeads.length}/${totalCards} extracted. ${failCount > 0 ? `⚠ ${failCount} partial.` : ''} ${skipCount > 0 ? `↩ ${skipCount} skipped.` : ''}`
+            type: "progress", status: "done",
+            found: totalCards, scraped: allLeads.length,
+            message: summary
         });
 
     } catch (err) {
-        contentLog('ERROR', `Extraction crashed: ${err.message}`, { stack: err.stack?.slice(0, 300) });
+        contentLog('ERROR', `[CRASH] ${err.message}`, { stack: err.stack?.slice(0, 500) });
         sendMsg({
             type: "progress", status: "done",
             message: `❌ ABORT: ${err.message}`,
             found: totalCards, scraped: allLeads.length
         });
     } finally {
-        // ALWAYS reset state and emit extraction_done — no matter what
         isExtracting = false;
         sendMsg({
             type: "extraction_done",
@@ -636,17 +655,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "extract_all" || request.action === "extract") {
         if (request.speed) extractionSpeed = request.speed;
 
-        // Accept geographic bounds for filtering
         if (request.bounds) {
             activeBounds = request.bounds;
-            contentLog('INFO', `Geo-bounds set: S${request.bounds.south.toFixed(3)} N${request.bounds.north.toFixed(3)} W${request.bounds.west.toFixed(3)} E${request.bounds.east.toFixed(3)}`);
+            contentLog('INFO', `[INIT] Geo-bounds set: S${request.bounds.south.toFixed(3)} N${request.bounds.north.toFixed(3)} W${request.bounds.west.toFixed(3)} E${request.bounds.east.toFixed(3)}`);
         } else {
             activeBounds = null;
         }
 
-        // If already extracting, reject the duplicate request
         if (isExtracting) {
-            console.warn("[GeoLead Content] Ignoring duplicate extract_all — already running.");
+            console.warn("[GeoLead] Ignoring duplicate extract_all — already running.");
             sendResponse({ started: false, error: "Already extracting" });
             return false;
         }
@@ -657,10 +674,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return false;
     }
     if (request.action === "reset") {
-        // Force-clear extraction state (used by background between grid zones)
         isExtracting = false;
         shouldStop = true;
-        contentLog('INFO', 'State reset by background (zone transition)');
+        contentLog('INFO', '[RESET] State reset by background (zone transition)');
         sendResponse({ reset: true });
         return false;
     }

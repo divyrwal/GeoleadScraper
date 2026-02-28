@@ -43,7 +43,7 @@
                 <div id="browser-grid-inputs" class="hidden"
                     style="margin-top: 10px; border-top: 1px solid rgba(0,255,65,0.1); padding-top: 10px;">
                     <p class="sub-text" style="font-size: 10px; margin-bottom: 8px;">
-                        Slices location into 9 geographic zones. Autonomously navigates and extracts from each zone.
+                        Slices location into geographic zones. Choose grid density below based on city size.
                     </p>
                     <div class="form-group">
                         <label for="browser-query">Target Query</label>
@@ -52,6 +52,16 @@
                     <div class="form-group">
                         <label for="browser-location">Target Location</label>
                         <input type="text" id="browser-location" placeholder="e.g., Texas, Mumbai">
+                    </div>
+                    <div class="form-group">
+                        <label for="browser-grid-size">Grid Density</label>
+                        <select id="browser-grid-size"
+                            style="width: 100%; padding: 8px; background: var(--card-bg, #1a1a2e); color: var(--text, #e0e0e0); border: 1px solid rgba(0,255,65,0.2); border-radius: 4px; font-size: 12px;">
+                            <option value="2">2×2 — Small Town (4 zones)</option>
+                            <option value="3" selected>3×3 — Medium City (9 zones)</option>
+                            <option value="4">4×4 — Large City (16 zones)</option>
+                            <option value="5">5×5 — Metro / State (25 zones)</option>
+                        </select>
                     </div>
                 </div>
             </div>
