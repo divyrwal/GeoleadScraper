@@ -153,21 +153,44 @@ export default function LeadsPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Leads</h1>
                     <p className="text-muted-foreground">Manage and organize your extracted business data.</p>
                 </div>
-                <Button onClick={async () => {
-                    if (!confirm("Start batch enriching all leads without emails? This runs in the background.")) return;
-                    setBulkLoading(true);
-                    try {
-                        await api.enrichBatchLeads();
-                        alert("Batch enrichment started in the background!");
-                    } catch (e) {
-                        console.error(e);
-                    } finally {
-                        setBulkLoading(false);
-                    }
-                }} disabled={bulkLoading} className="gap-2">
-                    <Database className="h-4 w-4" />
-                    Batch Enrich Emails
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={async () => {
+                        if (!confirm("Remove all duplicate leads? We will keep the original entry and delete all newer duplicates. This cannot be undone.")) return;
+                        setBulkLoading(true);
+                        try {
+                            const res = await api.removeDuplicates();
+                            if (res.success) {
+                                alert(`Successfully deleted ${res.deletedCount} duplicate leads!`);
+                                fetchLeads(pagination.page);
+                            } else {
+                                alert("Failed to remove duplicates.");
+                            }
+                        } catch (e) {
+                            console.error(e);
+                            alert("An error occurred while removing duplicates.");
+                        } finally {
+                            setBulkLoading(false);
+                        }
+                    }} disabled={bulkLoading} className="gap-2">
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                        Remove Duplicates
+                    </Button>
+                    <Button onClick={async () => {
+                        if (!confirm("Start batch enriching all leads without emails? This runs in the background.")) return;
+                        setBulkLoading(true);
+                        try {
+                            await api.enrichBatchLeads();
+                            alert("Batch enrichment started in the background!");
+                        } catch (e) {
+                            console.error(e);
+                        } finally {
+                            setBulkLoading(false);
+                        }
+                    }} disabled={bulkLoading} className="gap-2">
+                        <Database className="h-4 w-4" />
+                        Batch Enrich Emails
+                    </Button>
+                </div>
             </div>
 
             <LeadFilters filters={filters} onFilterChange={setFilters} onExport={handleExport} />

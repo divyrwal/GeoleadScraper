@@ -93,6 +93,9 @@ export const api = {
     getDuplicates: () =>
         request<{ success: boolean; data: any[]; totalGroups: number; totalDuplicateLeads: number }>("/api/leads/duplicates"),
 
+    removeDuplicates: () =>
+        request<{ success: boolean; deletedCount: number }>("/api/leads/duplicates", { method: "DELETE" }),
+
     // Enrichment
     enrichLead: (id: string) =>
         request<{ success: boolean; data: import("@geolead/types").Lead }>(`/api/leads/${id}/enrich`, { method: "POST" }),
