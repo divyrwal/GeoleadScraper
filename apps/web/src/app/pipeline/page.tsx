@@ -8,14 +8,15 @@ import LeadDetailModal from "@/components/leads/LeadDetailModal";
 import { api } from "@/lib/api";
 import type { Lead } from "@geolead/types";
 
-const PIPELINE_COLUMNS = [
-    { id: "new", label: "New", color: "bg-blue-500", description: "Freshly scraped" },
-    { id: "contacted", label: "Contacted", color: "bg-yellow-500", description: "Initial outreach" },
-    { id: "follow_up", label: "Follow Up", color: "bg-purple-500", description: "Needs follow up" },
-    { id: "qualified", label: "Qualified", color: "bg-green-500", description: "Good fit" },
-    { id: "negotiating", label: "Negotiating", color: "bg-indigo-500", description: "In talks" },
-    { id: "won", label: "Won ✓", color: "bg-emerald-500", description: "Deal closed" },
-    { id: "lost", label: "Lost", color: "bg-red-500", description: "Not interested" },
+const STATUS_COLUMNS = [
+    { id: "new", label: "New", color: "border-blue-500/50 bg-blue-500/10 text-blue-400", description: "Freshly scraped" },
+    { id: "contacted", label: "Contacted", color: "border-yellow-500/50 bg-yellow-500/10 text-yellow-500", description: "Initial outreach" },
+    { id: "follow_up", label: "Follow Up", color: "border-purple-500/50 bg-purple-500/10 text-purple-400", description: "Needs another touch" },
+    { id: "qualified", label: "Qualified", color: "border-green-500/50 bg-green-500/10 text-green-400", description: "Good fit" },
+    { id: "negotiating", label: "Negotiating", color: "border-indigo-500/50 bg-indigo-500/10 text-indigo-400", description: "Discussing terms" },
+    { id: "won", label: "Won", color: "border-emerald-500/50 bg-emerald-500/10 text-emerald-400", description: "Closed deal" },
+    { id: "lost", label: "Lost", color: "border-red-500/50 bg-red-500/10 text-red-400", description: "Not interested" },
+    { id: "closed", label: "Closed", color: "border-slate-500/50 bg-slate-500/10 text-slate-400", description: "Archived" },
 ];
 
 const ScoreIcon = ({ score }: { score: string | null }) => {
@@ -79,7 +80,7 @@ export default function PipelinePage() {
             </div>
 
             <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: "70vh" }}>
-                {PIPELINE_COLUMNS.map((col) => {
+                {STATUS_COLUMNS.map((col) => {
                     const columnLeads = getColumnLeads(col.id);
                     return (
                         <div
@@ -89,9 +90,10 @@ export default function PipelinePage() {
                             onDrop={(e) => handleDrop(e, col.id)}
                         >
                             {/* Column Header */}
-                            <div className="flex items-center gap-2 mb-3 px-1">
-                                <div className={`h-2.5 w-2.5 rounded-full ${col.color}`} />
-                                <h3 className="text-sm font-semibold flex-1">{col.label}</h3>
+                            <div className="flex items-center gap-2 mb-3">
+                                <Badge variant="outline" className={`${col.color} border px-2 py-0.5 text-xs font-semibold uppercase tracking-wider`}>
+                                    {col.label}
+                                </Badge>
                                 <Badge variant="secondary" className="text-xs">{columnLeads.length}</Badge>
                             </div>
 

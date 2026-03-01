@@ -22,9 +22,9 @@ interface LeadDetailModalProps {
 }
 
 const SCORE_CONFIG = {
-    hot: { icon: Flame, color: "text-orange-500", bg: "bg-orange-100", border: "border-orange-200", label: "Hot Lead" },
-    warm: { icon: Thermometer, color: "text-yellow-600", bg: "bg-yellow-50", border: "border-yellow-200", label: "Warm Lead" },
-    cold: { icon: Snowflake, color: "text-blue-500", bg: "bg-blue-50", border: "border-blue-200", label: "Cold Lead" },
+    hot: { icon: Flame, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20", label: "Hot Lead" },
+    warm: { icon: Thermometer, color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20", label: "Warm Lead" },
+    cold: { icon: Snowflake, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20", label: "Cold Lead" },
 };
 
 const STATUS_OPTIONS = [
@@ -145,16 +145,18 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }: LeadDetailM
 
                     {/* Score Card */}
                     {scoreConfig && (
-                        <div className={`flex items-center gap-3 p-3 rounded-lg border ${scoreConfig.bg} ${scoreConfig.border}`}>
-                            <ScoreIcon className={`h-5 w-5 ${scoreConfig.color}`} />
+                        <div className={`flex items-center gap-3 p-3 rounded-lg border ${scoreConfig.bg} ${scoreConfig.border} shadow-sm transition-colors`}>
+                            <div className={`p-2 rounded-full ${scoreConfig.bg} ${scoreConfig.color}`}>
+                                <ScoreIcon className="h-5 w-5" />
+                            </div>
                             <div className="flex-1">
-                                <div className="text-sm font-semibold">{scoreConfig.label}</div>
-                                <div className="text-xs text-muted-foreground">Score: {lead.lead_score_numeric}/100</div>
+                                <div className={`text-sm font-semibold ${scoreConfig.color}`}>{scoreConfig.label}</div>
+                                <div className="text-xs text-muted-foreground mt-0.5 font-mono">Score: {lead.lead_score_numeric}/100</div>
                             </div>
                             {lead.score_breakdown && (
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap gap-1 max-w-[150px] justify-end">
                                     {Object.entries(lead.score_breakdown).map(([key, val]) => (
-                                        <Badge key={key} variant="outline" className="text-[10px] px-1.5 py-0">
+                                        <Badge key={key} variant="outline" className={`text-[10px] px-1.5 py-0 ${scoreConfig.color} ${scoreConfig.border} bg-background/50 font-mono tracking-tight`}>
                                             {key} +{val}
                                         </Badge>
                                     ))}

@@ -1,8 +1,8 @@
 ﻿{
   "manifest_version": 3,
-  "name": "GeoLead RECON",
-  "version": "5.1",
-  "description": "Tactical business data extraction from Google Maps",
+  "name": "GeoLead",
+  "version": "6.0",
+  "description": "Professional business data extraction from Google Maps",
   "permissions": [
     "activeTab",
     "storage",
@@ -11,7 +11,8 @@
   ],
   "host_permissions": [
     "https://www.google.com/maps/*",
-    "http://localhost:4000/*"
+    "http://localhost:4000/*",
+    "https://photon.komoot.io/*"
   ],
   "side_panel": {
     "default_path": "sidebar.html"
@@ -22,16 +23,25 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.google.com/maps/*"
+        "https://www.google.com/maps*",
+        "https://maps.google.com/*"
       ],
       "js": [
-        "content.js"
+        "content/selectors.js",
+        "content/utils.js",
+        "content/dom.js",
+        "content/scroller.js",
+        "content/navigator.js",
+        "content/extractors.js",
+        "content/scraper.js",
+        "content/index.js"
       ],
       "run_at": "document_idle"
     }
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background/index.js",
+    "type": "module"
   },
   "icons": {
     "16": "icons/icon16.png",

@@ -107,7 +107,7 @@ export default function DuplicatesPage() {
                                                     {lead.category && <Badge variant="outline" className="text-xs mt-1">{lead.category}</Badge>}
                                                 </div>
                                                 {lead.lead_score && (
-                                                    <Badge className={`text-xs ${lead.lead_score === "hot" ? "bg-orange-500" : lead.lead_score === "warm" ? "bg-yellow-500" : "bg-blue-400"}`}>
+                                                    <Badge className={`text-xs ${lead.lead_score === "hot" ? "bg-orange-500/20 text-orange-500" : lead.lead_score === "warm" ? "bg-yellow-500/20 text-yellow-500" : "bg-blue-500/20 text-blue-400"} hover:bg-muted`}>
                                                         {lead.lead_score}
                                                     </Badge>
                                                 )}

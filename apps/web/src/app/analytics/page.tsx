@@ -72,8 +72,8 @@ export default function AnalyticsPage() {
                 <Card className="border-none shadow-sm">
                     <CardContent className="pt-5 pb-4">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-green-50">
-                                <TrendingUp className="h-5 w-5 text-green-600" />
+                            <div className="p-2 rounded-lg bg-green-500/10">
+                                <TrendingUp className="h-4 w-4 text-green-500" />
                             </div>
                             <div>
                                 <p className="text-2xl font-bold">{contactRate.rate}%</p>

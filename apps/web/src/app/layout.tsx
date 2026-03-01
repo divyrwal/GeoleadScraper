@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
-import { ThemeProvider } from "@/components/theme-provider";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono" });
 
 export const metadata: Metadata = {
-  title: "GeoLead Scraper & CRM",
+  title: "GeoLead CRM",
   description: "Locally-hosted, map-based lead generation and management tool",
 };
 
@@ -18,24 +18,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen bg-background antialiased`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <div className="relative flex min-h-screen">
-            <Sidebar />
-            <div className="flex flex-1 flex-col pl-64">
-              <Header />
-              <main className="flex-1 p-6">
-                {children}
-              </main>
-            </div>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className={`${inter.className} ${jetbrainsMono.variable} min-h-screen bg-background antialiased`}>
+        <div className="relative flex min-h-screen">
+          <Sidebar />
+          <div className="flex flex-1 flex-col pl-64">
+            <Header />
+            <main className="flex-1 p-6">
+              {children}
+            </main>
           </div>
-        </ThemeProvider>
+        </div>
       </body>
     </html>
   );

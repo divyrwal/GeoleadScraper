@@ -69,10 +69,10 @@ export default function MapPage() {
                     <p className="text-muted-foreground">{counts.total} leads mapped</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 text-xs">
-                        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-orange-500 inline-block" /> Hot ({counts.hot})</span>
-                        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-yellow-500 inline-block" /> Warm ({counts.warm})</span>
-                        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-blue-500 inline-block" /> Cold ({counts.cold})</span>
+                    <div className="mt-3 pt-3 border-t text-xs text-muted-foreground flex justify-between items-center">
+                        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-orange-500/50 border border-orange-500 inline-block" /> Hot ({counts.hot})</span>
+                        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-yellow-500/50 border border-yellow-500 inline-block" /> Warm ({counts.warm})</span>
+                        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-blue-500/50 border border-blue-500 inline-block" /> Cold ({counts.cold})</span>
                     </div>
                     <Select value={scoreFilter} onValueChange={setScoreFilter}>
                         <SelectTrigger className="w-[140px]"><SelectValue placeholder="All Scores" /></SelectTrigger>

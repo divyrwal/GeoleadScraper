@@ -87,7 +87,7 @@ export default function DashboardPage() {
                 <Icon className={`h-4 w-4 ${stat.color}`} />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="text-3xl font-bold font-mono tracking-tight text-foreground">{stat.value}</div>
                 <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
               </CardContent>
             </Card>
@@ -100,20 +100,20 @@ export default function DashboardPage() {
           <CardHeader><CardTitle>Quick Stats</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-4">
-              <div className="flex flex-col items-center p-4 bg-muted/40 rounded-lg">
+              <div className="flex flex-col items-center p-4 bg-muted/20 border border-border/50 rounded-lg shadow-sm hover:shadow-orange-500/10 transition-shadow">
                 <Flame className="h-6 w-6 text-orange-500 mb-2" />
-                <span className="text-2xl font-bold">{stats?.hotLeads ?? 0}</span>
-                <span className="text-xs text-muted-foreground">Hot</span>
+                <span className="text-2xl font-bold font-mono text-foreground">{stats?.hotLeads ?? 0}</span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Hot</span>
               </div>
-              <div className="flex flex-col items-center p-4 bg-muted/40 rounded-lg">
+              <div className="flex flex-col items-center p-4 bg-muted/20 border border-border/50 rounded-lg shadow-sm hover:shadow-yellow-500/10 transition-shadow">
                 <Thermometer className="h-6 w-6 text-yellow-500 mb-2" />
-                <span className="text-2xl font-bold">{stats?.warmLeads ?? 0}</span>
-                <span className="text-xs text-muted-foreground">Warm</span>
+                <span className="text-2xl font-bold font-mono text-foreground">{stats?.warmLeads ?? 0}</span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Warm</span>
               </div>
-              <div className="flex flex-col items-center p-4 bg-muted/40 rounded-lg">
+              <div className="flex flex-col items-center p-4 bg-muted/20 border border-border/50 rounded-lg shadow-sm hover:shadow-blue-500/10 transition-shadow">
                 <Snowflake className="h-6 w-6 text-blue-400 mb-2" />
-                <span className="text-2xl font-bold">{stats?.coldLeads ?? 0}</span>
-                <span className="text-xs text-muted-foreground">Cold</span>
+                <span className="text-2xl font-bold font-mono text-foreground">{stats?.coldLeads ?? 0}</span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Cold</span>
               </div>
             </div>
           </CardContent>
