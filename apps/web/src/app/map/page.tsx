@@ -46,9 +46,10 @@ export default function MapPage() {
     }, [scoreFilter]);
 
     const center = useMemo(() => {
-        if (leads.length === 0) return [23.3441, 85.3096] as [number, number]; // Ranchi default
-        const avgLat = leads.reduce((s, l) => s + l.lat, 0) / leads.length;
-        const avgLng = leads.reduce((s, l) => s + l.lng, 0) / leads.length;
+        const valid = leads.filter(l => typeof l.lat === "number" && typeof l.lng === "number" && !isNaN(l.lat) && !isNaN(l.lng));
+        if (valid.length === 0) return [23.3441, 85.3096] as [number, number]; // Ranchi default
+        const avgLat = valid.reduce((s, l) => s + l.lat, 0) / valid.length;
+        const avgLng = valid.reduce((s, l) => s + l.lng, 0) / valid.length;
         return [avgLat, avgLng] as [number, number];
     }, [leads]);
 
@@ -100,7 +101,7 @@ export default function MapPage() {
                                     url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
                                 />
-                                {leads.map((lead) => (
+                                {leads.filter(l => typeof l.lat === "number" && typeof l.lng === "number" && !isNaN(l.lat) && !isNaN(l.lng)).map((lead) => (
                                     <CircleMarker
                                         key={lead.id}
                                         center={[lead.lat, lead.lng]}
