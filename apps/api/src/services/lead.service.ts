@@ -62,6 +62,10 @@ export class LeadService {
             );
         }
 
+        if (query.isShortlisted === "true") {
+            filter.is_shortlisted = true;
+        }
+
         return filter;
     }
 
@@ -155,7 +159,7 @@ export class LeadService {
     }
 
     static async updateLead(id: string, updateData: any): Promise<Lead> {
-        const allowedFields = ["lead_status", "notes", "tags", "lead_score", "business_type"];
+        const allowedFields = ["lead_status", "notes", "tags", "lead_score", "business_type", "is_shortlisted"];
         const update: Record<string, unknown> = { updated_at: new Date() };
         for (const field of allowedFields) {
             if (updateData[field] !== undefined) update[field] = updateData[field];
@@ -316,6 +320,40 @@ export class LeadService {
 
         const result = await db.collection("leads").deleteMany({ _id: { $in: objectIds } });
         return result.deletedCount;
+    }
+
+    static async bulkShortlist(ids: string[], note?: string) {
+        const db = await getDb();
+        // @ts-ignore
+        const { ObjectId } = await import("@geolead/db");
+        const objectIds = ids.map(id => new ObjectId(id));
+
+        const updateSet: any = { is_shortlisted: true, updated_at: new Date() };
+
+        let result;
+        if (note) {
+            // If they provided a bulk note, append it to existing notes using aggregation-style update
+            // Currently, updateMany with a pipeline is trickier, so we'll just query and update individually for safety,
+            // or we could overwrite. Let's just update each to append to the existing notes cleanly.
+            const leads = await db.collection("leads").find({ _id: { $in: objectIds } }).toArray();
+            let modified = 0;
+            for (const lead of leads) {
+                const currentNote = lead.notes || "";
+                const newNote = currentNote ? `${currentNote}\n--- Shortlist Note ---\n${note}` : note;
+                const r = await db.collection("leads").updateOne(
+                    { _id: lead._id },
+                    { $set: { ...updateSet, notes: newNote } }
+                );
+                modified += r.modifiedCount;
+            }
+            return modified;
+        } else {
+            result = await db.collection("leads").updateMany(
+                { _id: { $in: objectIds } },
+                { $set: updateSet }
+            );
+            return result.modifiedCount;
+        }
     }
 
     static async bulkRescore(ids?: string[]) {

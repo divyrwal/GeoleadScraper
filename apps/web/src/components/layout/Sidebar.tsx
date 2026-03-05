@@ -14,12 +14,16 @@ import {
     Columns3,
     Copy,
     Terminal,
+    ListFilter,
+    Star,
 } from "lucide-react";
 
 const menuItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Analytics", href: "/analytics", icon: BarChart3 },
     { name: "Leads", href: "/leads", icon: Users },
+    { name: "Lead Sort", href: "/lead-sort", icon: ListFilter },
+    { name: "Shortlisted", href: "/shortlisted", icon: Star },
     { name: "Pipeline", href: "/pipeline", icon: Columns3 },
     { name: "Map View", href: "/map", icon: MapIcon },
     { name: "Live Engine", href: "/live", icon: Terminal },

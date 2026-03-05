@@ -12,5 +12,8 @@ leadsBulkRouter.post("/tag", LeadController.bulkAddTag);
 // POST /api/leads/bulk/delete
 leadsBulkRouter.post("/delete", LeadController.bulkDelete);
 
+// POST /api/leads/bulk/shortlist
+leadsBulkRouter.post("/shortlist", LeadController.bulkShortlist);
+
 // POST /api/leads/bulk/rescore
 leadsBulkRouter.post("/rescore", LeadController.bulkRescore);

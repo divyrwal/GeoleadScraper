@@ -31,6 +31,7 @@ export function useLeadsTable() {
             if (filters.hasEmail) params.hasEmail = "true";
             if (filters.missingWebsite) params.missingWebsite = "true";
             if (filters.missingSocials) params.missingSocials = "true";
+            if (filters.isShortlisted) params.isShortlisted = "true";
 
             const result = await api.getLeads(params);
             if (result.success) {
@@ -136,6 +137,20 @@ export function useLeadsTable() {
         }
     };
 
+    const handleBulkShortlist = async (note?: string) => {
+        if (selectedIds.size === 0) return;
+        setBulkLoading(true);
+        try {
+            await api.bulkShortlist(Array.from(selectedIds), note);
+            setSelectedIds(new Set());
+            fetchLeads(pagination.page);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setBulkLoading(false);
+        }
+    };
+
     const updateLeadInState = useCallback((updatedLead: Lead) => {
         setLeads(current => current.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
     }, []);
@@ -169,6 +184,7 @@ export function useLeadsTable() {
         // Bulk action commands
         handleBulkStatus,
         handleBulkTag,
-        handleBulkDelete
+        handleBulkDelete,
+        handleBulkShortlist
     };
 }

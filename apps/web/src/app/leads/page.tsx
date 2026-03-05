@@ -20,7 +20,7 @@ export default function LeadsPage() {
         handleAnalyze, analyzingId, handleExport, updateLeadInState,
         selectedIds, setSelectedIds, toggleSelect, toggleSelectAll,
         bulkStatus, setBulkStatus, bulkTag, setBulkTag, bulkLoading, setBulkLoading,
-        handleBulkStatus, handleBulkTag, handleBulkDelete
+        handleBulkStatus, handleBulkTag, handleBulkDelete, handleBulkShortlist
     } = useLeadsTable();
 
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -88,6 +88,7 @@ export default function LeadsPage() {
                 onBulkTagChange={setBulkTag}
                 onApplyTag={handleBulkTag}
                 onDelete={handleBulkDelete}
+                onShortlist={handleBulkShortlist}
                 isLoading={bulkLoading}
             />
 

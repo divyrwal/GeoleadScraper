@@ -83,6 +83,9 @@ export const api = {
     bulkTag: (ids: string[], tag: string) =>
         request<{ success: boolean; modified: number }>("/api/leads/bulk/tag", { method: "POST", body: JSON.stringify({ ids, tag }) }),
 
+    bulkShortlist: (ids: string[], note?: string) =>
+        request<{ success: boolean; updated: number }>("/api/leads/bulk/shortlist", { method: "POST", body: JSON.stringify({ ids, note }) }),
+
     bulkDelete: (ids: string[]) =>
         request<{ success: boolean; deleted: number }>("/api/leads/bulk/delete", { method: "POST", body: JSON.stringify({ ids }) }),
 

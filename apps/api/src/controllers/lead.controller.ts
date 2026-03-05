@@ -145,6 +145,20 @@ export class LeadController {
         }
     }
 
+    static async bulkShortlist(req: Request, res: Response) {
+        try {
+            const { ids, note } = req.body;
+            if (!ids || !Array.isArray(ids)) {
+                return res.status(400).json({ success: false, error: "ids required" });
+            }
+            const updated = await LeadService.bulkShortlist(ids, note);
+            res.json({ success: true, updated });
+        } catch (error: any) {
+            console.error("Bulk shortlist error:", error);
+            res.status(500).json({ success: false, error: "Bulk shortlist failed" });
+        }
+    }
+
     static async bulkRescore(req: Request, res: Response) {
         try {
             const { ids } = req.body;

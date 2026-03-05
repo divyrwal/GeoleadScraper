@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckSquare, Tag, Trash2, X } from "lucide-react";
+import { CheckSquare, Tag, Trash2, X, Star } from "lucide-react";
 import { STATUS_COLORS } from "./constants";
 
 interface LeadsBulkActionBarProps {
@@ -18,6 +18,7 @@ interface LeadsBulkActionBarProps {
     onApplyTag: () => void;
 
     onDelete: () => void;
+    onShortlist?: (note?: string) => void;
     isLoading: boolean;
 }
 
@@ -31,6 +32,7 @@ export function LeadsBulkActionBar({
     onBulkTagChange,
     onApplyTag,
     onDelete,
+    onShortlist,
     isLoading
 }: LeadsBulkActionBarProps) {
     if (selectedIds.size === 0) return null;
@@ -64,6 +66,27 @@ export function LeadsBulkActionBar({
                     <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={onApplyTag} disabled={isLoading}>
                         <Tag className="h-3 w-3" />Add
                     </Button>
+                )}
+
+                {onShortlist && (
+                    <>
+                        <div className="h-4 w-px bg-border ml-2" />
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 text-xs gap-1 ml-2 bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-500 dark:hover:bg-yellow-900/50"
+                            onClick={() => {
+                                const note = prompt("Optional short note for shortlisted leads:");
+                                if (note !== null) {
+                                    onShortlist(note);
+                                }
+                            }}
+                            disabled={isLoading}
+                        >
+                            <Star className="h-3 w-3" />
+                            Shortlist
+                        </Button>
+                    </>
                 )}
             </div>
 

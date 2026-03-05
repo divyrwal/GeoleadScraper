@@ -56,6 +56,7 @@ export interface Lead {
     ai_analysis: AiAnalysis | null;
     notes: string | null;
     tags: string[];
+    is_shortlisted?: boolean;
     last_contacted_at: string | null;
     contact_count: number;
     created_at: string;
@@ -90,6 +91,7 @@ export interface LeadFilter {
     missingWebsite?: boolean;
     missingSocials?: boolean;
     city?: string;
+    isShortlisted?: boolean;
 }
 
 export interface PaginationParams {
