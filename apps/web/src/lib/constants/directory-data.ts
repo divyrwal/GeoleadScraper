@@ -21,7 +21,7 @@ export const LOCATIONS = {
 
 export const PROFESSIONS = {
     "Medical": {
-        "Doctor": ["Orthopedic", "Gynecologist", "Pediatrician", "Cardiologist", "Dermatologist"],
+        "Doctor": ["Orthopedic", "Gynecologist", "Pediatrician", "Cardiologist", "Dermatologist", "General practitioner", "Neurologist", "Orthopedic Doctor", "Dentist"],
         "Dentist": ["Orthodontist", "Periodontist", "Endodontist", "Oral Surgeon"],
         "Specialist": ["Chiropractor", "Physiotherapist", "Optometrist"]
     },
