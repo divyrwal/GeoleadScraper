@@ -133,7 +133,10 @@ export class GridScanner {
         try {
             const res = await fetch(`${this.apiUrl}/api/leads`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer test-token'
+                },
                 body: JSON.stringify({ leads, search_query: searchQuery })
             });
             const result = await res.json();
@@ -175,7 +178,11 @@ export class GridScanner {
             found: 0, scraped: 0
         }).catch(() => { });
 
-        const res = await fetch(`${this.apiUrl}/api/search/grid?location=${encodeURIComponent(location)}&gridSize=${gridSize}`);
+        const res = await fetch(`${this.apiUrl}/api/search/grid?location=${encodeURIComponent(location)}&gridSize=${gridSize}`, {
+            headers: {
+                'Authorization': 'Bearer test-token'
+            }
+        });
         const data = await res.json();
 
         if (!res.ok || !data.success) {

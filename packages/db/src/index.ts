@@ -37,6 +37,8 @@ export async function getDb(): Promise<Db> {
             leads.createIndex({ location_coordinates: "2dsphere" }),
             // Compound index for name+address dedup fallback
             leads.createIndex({ business_name: 1, address: 1 }),
+            // High-performance text search index
+            leads.createIndex({ business_name: "text", category: "text", address: "text" }, { name: "lead_search_text_idx" }),
         ]);
 
         const contactLogs = cachedDb.collection("contact_logs");

@@ -1,5 +1,8 @@
 import type { Request, Response } from "express";
 import { LeadService } from "../services/lead.service";
+import { DuplicateService } from "../services/duplicate.service";
+import { EnrichmentService } from "../services/enrichment.service";
+import { AiAnalyzerService } from "../services/ai.service";
 
 export class LeadController {
     static async getLeads(req: Request, res: Response) {
@@ -73,7 +76,7 @@ export class LeadController {
     static async auditLead(req: Request, res: Response) {
         try {
             const includeAi = req.query.includeAi === 'true';
-            const data = await LeadService.auditLead(req.params.id as string, includeAi);
+            const data = await AiAnalyzerService.auditLead(req.params.id as string, includeAi);
             res.json({ success: true, data });
         } catch (error: any) {
             console.error("Audit lead failed:", error);
@@ -84,7 +87,7 @@ export class LeadController {
 
     static async analyzeLead(req: Request, res: Response) {
         try {
-            const data = await LeadService.analyzeLead(req.params.id as string);
+            const data = await AiAnalyzerService.analyzeLead(req.params.id as string);
             res.json({ success: true, data });
         } catch (error: any) {
             console.error("Analysis failed:", error);
@@ -213,7 +216,7 @@ export class LeadController {
 
     static async getDuplicates(_req: Request, res: Response) {
         try {
-            const data = await LeadService.getDuplicates();
+            const data = await DuplicateService.getDuplicates();
             res.json({ success: true, ...data });
         } catch (error) {
             console.error("Duplicates error:", error);
@@ -223,7 +226,7 @@ export class LeadController {
 
     static async deleteDuplicates(_req: Request, res: Response) {
         try {
-            const deletedCount = await LeadService.deleteDuplicates();
+            const deletedCount = await DuplicateService.deleteDuplicates();
             res.json({ success: true, deletedCount });
         } catch (error) {
             console.error("Delete duplicates error:", error);
@@ -233,7 +236,7 @@ export class LeadController {
 
     static async enrichLead(req: Request, res: Response) {
         try {
-            const data = await LeadService.enrichLead(req.params.id as string);
+            const data = await EnrichmentService.enrichLead(req.params.id as string);
             res.json({ success: true, data });
         } catch (error: any) {
             console.error("Failed to enrich lead:", error);
@@ -244,10 +247,10 @@ export class LeadController {
 
     static async batchEnrichLeads(_req: Request, res: Response) {
         // Return immediately for background processing
-        res.json({ success: true, message: "Batch enrichment started in background" });
+        res.json({ success: true, message: "Batch enrichment started in background using Queue" });
 
         // Run as background process explicitly disconnected from Express request cycle
-        LeadService.batchEnrichLeads().catch((error) => {
+        EnrichmentService.batchEnrichLeads().catch((error) => {
             console.error("Uncaught error in batchEnrichLeads background job", error);
         });
     }

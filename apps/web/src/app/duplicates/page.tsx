@@ -34,7 +34,7 @@ export default function DuplicatesPage() {
     const fetchDuplicates = async () => {
         setLoading(true);
         try {
-            const result = await api.getDuplicates();
+            const result = await api.getDuplicates<DuplicateGroup>();
             if (result.success) {
                 setGroups(result.data);
                 setTotalDuplicates(result.totalDuplicateLeads);

@@ -37,8 +37,11 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
         else if (state) locationQuery = state;
         else if (country) locationQuery = country;
 
-        onFilterChange({ ...filters, city: locationQuery || undefined });
-    }, [country, state, city]);
+        const newCity = locationQuery || undefined;
+        if (filters.city !== newCity) {
+            onFilterChange({ ...filters, city: newCity });
+        }
+    }, [country, state, city, filters, onFilterChange]);
 
     // When profession dropdowns change, build a "category" search string
     useEffect(() => {
@@ -47,8 +50,11 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
         else if (professionNode) categoryQuery = professionNode;
         else if (professionFamily) categoryQuery = professionFamily;
 
-        onFilterChange({ ...filters, category: categoryQuery || undefined });
-    }, [professionFamily, professionNode, subProfession]);
+        const newCat = categoryQuery || undefined;
+        if (filters.category !== newCat) {
+            onFilterChange({ ...filters, category: newCat });
+        }
+    }, [professionFamily, professionNode, subProfession, filters, onFilterChange]);
 
     const hasActiveFilters =
         filters.search || filters.category || filters.city || filters.hasPhone || filters.hasWebsite;
@@ -63,11 +69,14 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
         onFilterChange({});
     };
 
-    const stateOptions = country && (LOCATIONS as any)[country] ? Object.keys((LOCATIONS as any)[country]) : [];
-    const cityOptions = state && (LOCATIONS as any)[country]?.[state] ? (LOCATIONS as any)[country][state] : [];
+    const locs = LOCATIONS as Record<string, Record<string, string[]>>;
+    const profs = PROFESSIONS as Record<string, Record<string, string[]>>;
 
-    const nodeOptions = professionFamily && (PROFESSIONS as any)[professionFamily] ? Object.keys((PROFESSIONS as any)[professionFamily]) : [];
-    const subOptions = professionNode && (PROFESSIONS as any)[professionFamily]?.[professionNode] ? (PROFESSIONS as any)[professionFamily][professionNode] : [];
+    const stateOptions = country && locs[country] ? Object.keys(locs[country]) : [];
+    const cityOptions = state && locs[country]?.[state] ? locs[country][state] : [];
+
+    const nodeOptions = professionFamily && profs[professionFamily] ? Object.keys(profs[professionFamily]) : [];
+    const subOptions = professionNode && profs[professionFamily]?.[professionNode] ? profs[professionFamily][professionNode] : [];
 
     return (
         <div className="flex flex-col gap-4 p-4 border rounded-xl bg-card shadow-sm">

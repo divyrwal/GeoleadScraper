@@ -6,7 +6,7 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const url = `${API_URL}${path}`;
     const res = await fetch(url, {
-        headers: { "Content-Type": "application/json", ...options?.headers },
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer test-token", ...options?.headers },
         ...options,
     });
     return res.json();
@@ -58,8 +58,9 @@ export const api = {
 
     // Export
     getExportUrl: (params?: Record<string, string>) => {
-        const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
-        return `${API_URL}/api/leads/export${qs}`;
+        const queryParams = new URLSearchParams(params || {});
+        queryParams.set("token", "test-token");
+        return `${API_URL}/api/leads/export?${queryParams.toString()}`;
     },
 
     // Scrape Sessions (map coverage)
@@ -92,9 +93,8 @@ export const api = {
     rescoreAll: () =>
         request<{ success: boolean; updated: number }>("/api/leads/rescore", { method: "POST" }),
 
-    // Duplicates
-    getDuplicates: () =>
-        request<{ success: boolean; data: any[]; totalGroups: number; totalDuplicateLeads: number }>("/api/leads/duplicates"),
+    getDuplicates: <T = Record<string, unknown>>() =>
+        request<{ success: boolean; data: T[]; totalGroups: number; totalDuplicateLeads: number }>("/api/leads/duplicates"),
 
     removeDuplicates: () =>
         request<{ success: boolean; deletedCount: number }>("/api/leads/duplicates", { method: "DELETE" }),
