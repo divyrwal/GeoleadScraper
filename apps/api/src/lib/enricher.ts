@@ -68,7 +68,7 @@ export async function enrichLead(websiteUrl: string): Promise<EnrichmentResult> 
 
                 // 1. Extract Emails from text
                 const text = $("body").text();
-                const textEmails = text.match(EMAIL_REGEX) || [];
+                const textEmails = (text.match(EMAIL_REGEX) || []) as string[];
                 textEmails.forEach(e => allEmails.add(e.toLowerCase()));
 
                 // Extract Emails from mailto links
