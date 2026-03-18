@@ -12,6 +12,7 @@
   "host_permissions": [
     "https://www.google.com/maps/*",
     "http://localhost:4000/*",
+    "https://*.vercel.app/*",
     "https://photon.komoot.io/*"
   ],
   "side_panel": {

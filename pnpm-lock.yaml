@@ -242,6 +242,9 @@ importers:
         specifier: ^7.1.0
         version: 7.1.0(socks@2.8.7)
     devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.33
       typescript:
         specifier: ^5
         version: 5.9.3

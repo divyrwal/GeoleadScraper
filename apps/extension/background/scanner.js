@@ -7,7 +7,7 @@ import { logger } from './logger.js';
 
 export class GridScanner {
     constructor() {
-        this.apiUrl = 'http://localhost:4000';
+        this.apiUrl = 'https://your-geolead-api.vercel.app';
 
         // Scan State
         this.isScanning = false;
