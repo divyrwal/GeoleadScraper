@@ -3,6 +3,8 @@
  * DOM element references and basic UI logic for the redesigned sidebar.
  */
 
+import { config } from '../config.js';
+
 export class UIManager {
     constructor() {
         this.activeMode = 'single'; // 'single' or 'bulk'
@@ -19,9 +21,16 @@ export class UIManager {
         this.viewSingle = document.getElementById('view-single');
         this.viewBulk = document.getElementById('view-bulk');
 
+        // Links
+        this.dashboardLink = document.querySelector('.footer-link');
+
         // Settings
         this.apiUrlInput = document.getElementById('api-url');
         this.settingsPanel = document.getElementById('settings-panel');
+
+        // Initialize from Config
+        if (this.apiUrlInput) this.apiUrlInput.value = config.apiUrl;
+        if (this.dashboardLink) this.dashboardLink.href = config.dashboardUrl;
 
         // Status & Connection
         this.statusDot = document.querySelector('.dot');
@@ -78,9 +87,9 @@ export class UIManager {
             this.tabBulk.classList.toggle('active', mode === 'bulk');
             this.viewSingle.classList.toggle('hidden', mode !== 'single');
             this.viewBulk.classList.toggle('hidden', mode !== 'bulk');
-            
+
             // Sync current state text
-            this.extractBtn.querySelector('.btn-text').textContent = 
+            this.extractBtn.querySelector('.btn-text').textContent =
                 mode === 'bulk' ? "Start Bulk Campaign" : "Start Grid Scan";
         };
 

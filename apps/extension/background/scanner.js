@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger.js';
+import { config } from '../config.js';
 
 export class GridWorker {
     constructor(workerId, apiUrl, onProgress, onDone, onLeads) {
@@ -52,10 +53,10 @@ export class GridWorker {
 
             // 2. Create tab now that we are ready
             const currentWin = await chrome.windows.getCurrent();
-            const tab = await chrome.tabs.create({ 
-                active: false, 
+            const tab = await chrome.tabs.create({
+                active: false,
                 url: 'about:blank',
-                windowId: currentWin.id 
+                windowId: currentWin.id
             });
             this.tabId = tab.id;
             logger.log('INFO', `Worker ${this.id}`, `Created tab ${this.tabId}. Starting zones...`);
@@ -83,10 +84,10 @@ export class GridWorker {
             message: `[Zone ${zoneIndex}/${this.totalZones}] 📍 Worker ${this.id} -> ${zone.label}`
         });
 
-        const query = this.currentLocation 
-            ? `${this.currentQuery} in ${this.currentLocation}` 
+        const query = this.currentLocation
+            ? `${this.currentQuery} in ${this.currentLocation}`
             : this.currentQuery;
-            
+
         const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${zone.lat},${zone.lng},14z`;
         this.zoneInjected = false;
         this.zoneStartTime = Date.now();
@@ -142,19 +143,19 @@ export class GridWorker {
             status: "navigating",
             message: `✓ Zone extraction complete. Checking next...`
         });
-        
+
         setTimeout(() => this.nextZone(), 1000);
     }
 }
 
 export class CampaignManager {
     constructor() {
-        this.apiUrl = 'http://localhost:4000';
+        this.apiUrl = config.apiUrl;
         this.isScanning = false;
         this.queue = []; // Array of {query, location, gridSize}
         this.workers = new Map(); // workerId -> GridWorker
         this.maxWorkers = 3;
-        
+
         this.totalLeads = 0;
         this.totalSaved = 0;
         this.totalDupes = 0;
@@ -162,7 +163,7 @@ export class CampaignManager {
         this.saveMode = false;
         this.globalSeenIds = new Set();
         this.globalSeenPhones = new Set();
-        
+
         this.initStorage();
     }
 
@@ -177,7 +178,7 @@ export class CampaignManager {
 
     async startBulk(queries, location, gridSize, maxTabs = 3, saveMode = false) {
         if (this.isScanning) throw new Error("A campaign is already running.");
-        
+
         this.isScanning = true;
         this.queue = queries.map(q => ({ query: q, location, gridSize }));
         this.maxWorkers = maxTabs;
@@ -195,19 +196,19 @@ export class CampaignManager {
 
     fillWorkers() {
         if (!this.isScanning) return;
-        
+
         while (this.workers.size < this.maxWorkers && this.queue.length > 0) {
             const task = this.queue.shift();
             const workerId = Date.now() + Math.random().toString(36).substr(2, 5);
-            
+
             const worker = new GridWorker(
-                workerId, 
+                workerId,
                 this.apiUrl,
                 (wid, msg) => this.relayProgress(wid, msg),
                 (wid) => this.handleWorkerDone(wid),
                 (wid, leads, q) => this.handleLeads(wid, leads, q)
             );
-            
+
             this.workers.set(workerId, worker);
             worker.start(task.query, task.location, 300, task.gridSize, this.saveMode);
         }
@@ -229,13 +230,13 @@ export class CampaignManager {
     relayProgress(workerId, msg) {
         msg._fromBg = true;
         msg.workerId = workerId;
-        
+
         // Inject global campaign stats
         msg.campaignFound = this.totalLeads;
         msg.campaignQueue = this.queue.length;
         msg.campaignTotal = this.queue.length + this.workers.size;
 
-        chrome.runtime.sendMessage(msg).catch(() => {});
+        chrome.runtime.sendMessage(msg).catch(() => { });
     }
 
     async handleLeads(workerId, leads, query) {
@@ -272,12 +273,12 @@ export class CampaignManager {
             this.totalDupes += (result.updated || 0) + (result.skipped || 0);
         } catch (err) {
             logger.log('ERROR', 'CAMPAIGN', `Save failed: ${err.message}`);
-            chrome.runtime.sendMessage({ 
-                type: "progress", 
-                _fromBg: true, 
-                status: "error", 
-                message: `❌ Database Upload Failed: ${err.message}` 
-            }).catch(() => {});
+            chrome.runtime.sendMessage({
+                type: "progress",
+                _fromBg: true,
+                status: "error",
+                message: `❌ Database Upload Failed: ${err.message}`
+            }).catch(() => { });
         }
     }
 
@@ -291,7 +292,7 @@ export class CampaignManager {
             }
         }
         logger.log('INFO', 'CAMPAIGN', `Campaign finished. Total unique: ${this.totalLeads}`);
-        chrome.runtime.sendMessage({ type: "extraction_done", _fromBg: true, total_scraped: this.totalLeads }).catch(() => {});
+        chrome.runtime.sendMessage({ type: "extraction_done", _fromBg: true, total_scraped: this.totalLeads }).catch(() => { });
     }
 
     stop() {
