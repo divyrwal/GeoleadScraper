@@ -14,7 +14,7 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
         return;
     }
 
-    if (token === process.env.API_KEY || token === "test-token") {
+    if (token === config.api.apiKey) {
         return next();
     }
 

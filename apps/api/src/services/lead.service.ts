@@ -1,4 +1,4 @@
-import { getDb } from "@geolead/db";
+import { getDb, ObjectId } from "@geolead/db";
 import { config } from "@geolead/config";
 import type { Lead, PaginationMeta } from "@geolead/types";
 import { computeLeadScore } from "../lib/scoring";
@@ -8,6 +8,14 @@ import { analyzeLead as aiAnalyzeLead } from "@geolead/ai";
 import { enrichLead as libEnrichLead } from "../lib/enricher";
 
 export class LeadService {
+    private static escapeRegex(str: string) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    private static isValidObjectId(id: string) {
+        return /^[0-9a-fA-F]{24}$/.test(id);
+    }
+
     static buildFilter(query: any) {
         const filter: Record<string, unknown> = {};
         if (query.search) {
@@ -16,13 +24,13 @@ export class LeadService {
 
         // Hierarchical Location Filters
         if (query.country) {
-            filter.address = { $regex: query.country, $options: "i" };
+            filter.address = { $regex: this.escapeRegex(query.country), $options: "i" };
         }
         if (query.state) {
-            filter.address = { $regex: query.state, $options: "i" };
+            filter.address = { $regex: this.escapeRegex(query.state), $options: "i" };
         }
         if (query.city) {
-            const cityRegex = { $regex: query.city, $options: "i" };
+            const cityRegex = { $regex: this.escapeRegex(query.city), $options: "i" };
             const cityOr = [
                 { address: cityRegex },
                 { plus_code: cityRegex },
@@ -40,15 +48,13 @@ export class LeadService {
 
         // Tier Logic (Placeholder for DB-side tiering)
         if (query.tier) {
-            // This assumes we might tag leads with tiers later
-            // For now, if a user requests "Tier 1", we could filter known Tier 1 cities
-            // But usually this will be handled by the frontend sending a city list or the backend having a 'tier' field
-            filter.city_tier = query.tier; 
+            filter.city_tier = query.tier;
         }
 
-        if (query.category) filter.category = { $regex: query.category, $options: "i" };
+        if (query.category) filter.category = { $regex: this.escapeRegex(query.category), $options: "i" };
         if (query.status) filter.lead_status = query.status;
         if (query.score) filter.lead_score = query.score;
+        // ... rest of filters
 
         // Ratings & Reviews
         if (query.minRating || query.maxRating) {
@@ -68,8 +74,8 @@ export class LeadService {
             const emailOr = [{ email: null }, { email: "" }];
             if (filter.$and) (filter.$and as any[]).push({ $or: emailOr });
             else if (filter.$or) {
-                 filter.$and = [{ $or: filter.$or }, { $or: emailOr }];
-                 delete filter.$or;
+                filter.$and = [{ $or: filter.$or }, { $or: emailOr }];
+                delete filter.$or;
             } else filter.$or = emailOr;
         }
 
@@ -83,8 +89,8 @@ export class LeadService {
             ];
             if (filter.$and) (filter.$and as any[]).push({ $or: socialOr });
             else if (filter.$or) {
-                 filter.$and = [{ $or: filter.$or }, { $or: socialOr }];
-                 delete filter.$or;
+                filter.$and = [{ $or: filter.$or }, { $or: socialOr }];
+                delete filter.$or;
             } else filter.$or = socialOr;
         }
 
@@ -176,15 +182,15 @@ export class LeadService {
     }
 
     static async getLeadById(id: string): Promise<Lead> {
+        if (!this.isValidObjectId(id)) throw new Error("Invalid Lead ID format.");
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
         const lead = await db.collection("leads").findOne({ _id: new ObjectId(id) });
         if (!lead) throw new Error("Lead not found");
         return { ...lead, id: lead._id.toString() } as unknown as Lead;
     }
 
     static async updateLead(id: string, updateData: any): Promise<Lead> {
+        if (!this.isValidObjectId(id)) throw new Error("Invalid Lead ID format.");
         const allowedFields = ["lead_status", "notes", "tags", "lead_score", "business_type", "is_shortlisted"];
         const update: Record<string, unknown> = { updated_at: new Date() };
         for (const field of allowedFields) {
@@ -192,8 +198,6 @@ export class LeadService {
         }
 
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
         await db.collection("leads").updateOne({ _id: new ObjectId(id) }, { $set: update });
         const updated = await db.collection("leads").findOne({ _id: new ObjectId(id) });
         if (!updated) throw new Error("Lead not found");
@@ -201,9 +205,8 @@ export class LeadService {
     }
 
     static async addContactLog(leadId: string, notes: string) {
+        if (!this.isValidObjectId(leadId)) throw new Error("Invalid Lead ID format.");
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
         const objId = new ObjectId(leadId);
 
         const lead = await db.collection("leads").findOne({ _id: objId });
@@ -231,9 +234,8 @@ export class LeadService {
     }
 
     static async auditLead(id: string, includeAi: boolean) {
+        if (!this.isValidObjectId(id)) throw new Error("Invalid Lead ID format.");
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
         const objId = new ObjectId(id);
 
         const lead = await db.collection("leads").findOne({ _id: objId });
@@ -270,9 +272,8 @@ export class LeadService {
     }
 
     static async analyzeLead(id: string) {
+        if (!this.isValidObjectId(id)) throw new Error("Invalid Lead ID format.");
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
         const objId = new ObjectId(id);
         const lead = await db.collection("leads").findOne({ _id: objId });
         if (!lead) throw new Error("Lead not found");
@@ -314,9 +315,10 @@ export class LeadService {
 
     static async bulkUpdateStatus(ids: string[], status: string) {
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
-        const objectIds = ids.map(id => new ObjectId(id));
+        const objectIds = ids.map(id => {
+            if (!this.isValidObjectId(id)) throw new Error(`Invalid ID format: ${id}`);
+            return new ObjectId(id);
+        });
 
         const result = await db.collection("leads").updateMany(
             { _id: { $in: objectIds } },
@@ -327,9 +329,10 @@ export class LeadService {
 
     static async bulkAddTag(ids: string[], tag: string) {
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
-        const objectIds = ids.map(id => new ObjectId(id));
+        const objectIds = ids.map(id => {
+            if (!this.isValidObjectId(id)) throw new Error(`Invalid ID format: ${id}`);
+            return new ObjectId(id);
+        });
 
         const result = await db.collection("leads").updateMany(
             { _id: { $in: objectIds } },
@@ -340,9 +343,10 @@ export class LeadService {
 
     static async bulkDelete(ids: string[]) {
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
-        const objectIds = ids.map(id => new ObjectId(id));
+        const objectIds = ids.map(id => {
+            if (!this.isValidObjectId(id)) throw new Error(`Invalid ID format: ${id}`);
+            return new ObjectId(id);
+        });
 
         const result = await db.collection("leads").deleteMany({ _id: { $in: objectIds } });
         return result.deletedCount;
@@ -350,9 +354,10 @@ export class LeadService {
 
     static async bulkShortlist(ids: string[], note?: string) {
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
-        const objectIds = ids.map(id => new ObjectId(id));
+        const objectIds = ids.map(id => {
+            if (!this.isValidObjectId(id)) throw new Error(`Invalid ID format: ${id}`);
+            return new ObjectId(id);
+        });
 
         const updateSet: any = { is_shortlisted: true, updated_at: new Date() };
 
@@ -384,13 +389,18 @@ export class LeadService {
 
     static async bulkRescore(ids?: string[]) {
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
         const collection = db.collection("leads");
 
         let filter: Record<string, unknown> = {};
         if (ids && Array.isArray(ids)) {
-            filter = { _id: { $in: ids.map((id: string) => new ObjectId(id)) } };
+            filter = {
+                _id: {
+                    $in: ids.map((id: string) => {
+                        if (!this.isValidObjectId(id)) throw new Error(`Invalid ID format: ${id}`);
+                        return new ObjectId(id);
+                    })
+                }
+            };
         }
 
         const leads = await collection.find(filter).toArray();
@@ -447,7 +457,7 @@ export class LeadService {
         };
 
         if (queryParams.score) filter.lead_score = queryParams.score;
-        if (queryParams.category) filter.category = { $regex: queryParams.category, $options: "i" };
+        if (queryParams.category) filter.category = { $regex: this.escapeRegex(queryParams.category), $options: "i" };
         if (queryParams.hasPhone === "true") filter.has_phone = true;
         if (queryParams.status) filter.lead_status = queryParams.status;
 
@@ -486,7 +496,7 @@ export class LeadService {
         const pipeline: object[] = [
             { $geoNear: { near: { type: "Point", coordinates: [lng, lat] }, distanceField: "distance_meters", maxDistance: radiusMs, spherical: true } },
         ];
-        if (category) pipeline.push({ $match: { category: { $regex: category, $options: "i" } } });
+        if (category) pipeline.push({ $match: { category: { $regex: this.escapeRegex(category), $options: "i" } } });
         pipeline.push({ $limit: 100 });
 
         const docs = await db.collection("leads").aggregate(pipeline).toArray();
@@ -496,9 +506,8 @@ export class LeadService {
 
 
     static async enrichLead(id: string) {
+        if (!this.isValidObjectId(id)) throw new Error("Invalid Lead ID format.");
         const db = await getDb();
-        // @ts-ignore
-        const { ObjectId } = await import("@geolead/db");
         const objId = new ObjectId(id);
 
         const lead = await db.collection("leads").findOne({ _id: objId });

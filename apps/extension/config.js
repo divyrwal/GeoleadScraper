@@ -9,5 +9,8 @@ export const config = {
     apiUrl: 'https://geolead-scraper-api.vercel.app',
 
     // The local production dashboard URL
-    dashboardUrl: 'http://localhost:3000/leads'
+    dashboardUrl: 'http://localhost:3000/leads',
+
+    // The API key for authentication
+    apiKey: 'fallback-secret-for-local-crm'
 };

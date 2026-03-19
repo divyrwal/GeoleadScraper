@@ -12,6 +12,7 @@ export const config = {
     api: {
         port: parseInt(process.env.API_PORT || "4000"),
         corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:3000").split(","),
+        apiKey: process.env.GEOLEAD_API_KEY || "fallback-secret-for-local-crm",
     },
     app: {
         apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",

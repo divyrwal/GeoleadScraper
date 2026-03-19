@@ -6,7 +6,7 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const url = `${API_URL}${path}`;
     const res = await fetch(url, {
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer test-token", ...options?.headers },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${process.env.NEXT_PUBLIC_GEOLEAD_API_KEY || "test-token"}`, ...options?.headers },
         ...options,
     });
     return res.json();
@@ -59,7 +59,8 @@ export const api = {
     // Export
     getExportUrl: (params?: Record<string, string>) => {
         const queryParams = new URLSearchParams(params || {});
-        queryParams.set("token", "test-token");
+        // In production, we should avoid query-param tokens if possible, but for simple GET download:
+        queryParams.set("token", process.env.NEXT_PUBLIC_GEOLEAD_API_KEY || "test-token");
         return `${API_URL}/api/leads/export?${queryParams.toString()}`;
     },
 

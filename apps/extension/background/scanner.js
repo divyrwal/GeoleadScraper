@@ -43,7 +43,7 @@ export class GridWorker {
         // 1. Fetch Grid First
         try {
             const res = await fetch(`${this.apiUrl}/api/search/grid?location=${encodeURIComponent(location)}&gridSize=${gridSize}`, {
-                headers: { 'Authorization': 'Bearer test-token' }
+                headers: { 'Authorization': `Bearer ${config.apiKey}` }
             });
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.error || "Grid fetch failed");
@@ -264,7 +264,7 @@ export class CampaignManager {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer test-token'
+                    'Authorization': `Bearer ${config.apiKey}`
                 },
                 body: JSON.stringify({ leads, search_query: query })
             });

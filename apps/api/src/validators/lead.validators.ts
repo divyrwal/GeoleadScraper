@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId");
+
 export const getLeadsQuerySchema = z.object({
     page: z.string().regex(/^\d+$/).optional(),
     limit: z.string().regex(/^\d+$/).optional(),
@@ -25,26 +27,55 @@ export const getLeadsQuerySchema = z.object({
 
 export const createLeadsBodySchema = z.object({
     search_query: z.string().optional(),
-    leads: z.array(z.record(z.string(), z.any()))
+    leads: z.array(z.object({
+        business_name: z.string(),
+        google_place_id: z.string().optional(),
+        address: z.string().optional(),
+        phone_number: z.string().optional(),
+        website_url: z.string().url().optional().or(z.literal("")),
+        google_rating: z.number().optional(),
+        review_count: z.number().optional(),
+        category: z.string().optional(),
+        location_lat: z.number().optional(),
+        location_long: z.number().optional(),
+    }).passthrough())
 }).strict();
 
 export const bulkUpdateStatusSchema = z.object({
-    ids: z.array(z.string()),
+    ids: z.array(objectIdSchema),
     status: z.string()
 }).strict();
 
 export const bulkAddTagSchema = z.object({
-    ids: z.array(z.string()),
+    ids: z.array(objectIdSchema),
     tag: z.string()
 }).strict();
 
 export const bulkDeleteSchema = z.object({
-    ids: z.array(z.string())
+    ids: z.array(objectIdSchema)
 }).strict();
 
 export const bulkShortlistSchema = z.object({
-    ids: z.array(z.string()),
+    ids: z.array(objectIdSchema),
     note: z.string().optional()
 }).strict();
 
-export const updateLeadSchema = z.record(z.string(), z.any()); // Could be more strict but handles patching fields currently
+export const updateLeadSchema = z.object({
+    lead_status: z.string().optional(),
+    notes: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    lead_score: z.string().optional(),
+    business_type: z.string().optional(),
+    is_shortlisted: z.boolean().optional(),
+}).strict();
+
+export const contactLogSchema = z.object({
+    notes: z.string().min(1)
+}).strict();
+
+export const nearbyLeadsQuerySchema = z.object({
+    lat: z.string().regex(/^-?\d+(\.\d+)?$/),
+    lng: z.string().regex(/^-?\d+(\.\d+)?$/),
+    radius: z.string().regex(/^\d+$/).optional(),
+    category: z.string().optional()
+}).strict();
