@@ -90,8 +90,8 @@ importers:
         specifier: ^13.0.0
         version: 13.0.0
       whois:
-        specifier: ^2.16.1
-        version: 2.16.1
+        specifier: 2.14.0
+        version: 2.14.0
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -5441,8 +5441,8 @@ packages:
     engines: {node: ^16.13.0 || >=18.0.0}
     hasBin: true
 
-  whois@2.16.1:
-    resolution: {integrity: sha512-gCxr+knAuXzsHJlHaIi8bCZoRU9anysyKbo0mgjAkkanNdOvUhBZShgG/ckcpKryDUVs2cH684MU+wOLjBYlAA==}
+  whois@2.14.0:
+    resolution: {integrity: sha512-Gz8bk5kXMU0CPWknN6/us/qJvh/t9H6YeAxYh7hvM7jDbefMFEATJ0IHv8oLv82svrm3JhrSvC3oIOgTuCX4uQ==}
     hasBin: true
 
   word-wrap@1.2.5:
@@ -10608,7 +10608,7 @@ snapshots:
 
   socks@2.8.7:
     dependencies:
-      ip-address: 10.0.1
+      ip-address: 10.1.0
       smart-buffer: 4.2.0
 
   sonic-boom@4.2.1:
@@ -11186,7 +11186,7 @@ snapshots:
     dependencies:
       isexe: 3.1.5
 
-  whois@2.16.1:
+  whois@2.14.0:
     dependencies:
       socks: 2.8.7
       underscore: 1.13.8
