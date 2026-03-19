@@ -5,12 +5,17 @@ const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId")
 export const getLeadsQuerySchema = z.object({
     page: z.string().regex(/^\d+$/).optional(),
     limit: z.string().regex(/^\d+$/).optional(),
+    pageSize: z.string().regex(/^\d+$/).optional(),
     search: z.string().optional(),
     status: z.string().optional(),
+    score: z.string().optional(),
     hasWebsite: z.enum(["true", "false", ""]).optional(),
     hasPhone: z.enum(["true", "false", ""]).optional(),
     hasEmail: z.enum(["true", "false", ""]).optional(),
     hasSocials: z.enum(["true", "false", ""]).optional(),
+    missingWebsite: z.enum(["true", "false", ""]).optional(),
+    missingSocials: z.enum(["true", "false", ""]).optional(),
+    isShortlisted: z.enum(["true", "false", ""]).optional(),
     minScore: z.string().regex(/^\d+$/).optional(),
     maxScore: z.string().regex(/^\d+$/).optional(),
     country: z.string().optional(),
@@ -19,11 +24,12 @@ export const getLeadsQuerySchema = z.object({
     tier: z.string().optional(),
     category: z.string().optional(),
     minRating: z.string().optional(),
+    maxRating: z.string().optional(),
     minReviews: z.string().optional(),
     sort: z.string().optional(),
     order: z.enum(["asc", "desc", "1", "-1", ""]).optional(),
     source: z.string().optional()
-}).strict();
+});
 
 export const createLeadsBodySchema = z.object({
     search_query: z.string().optional(),

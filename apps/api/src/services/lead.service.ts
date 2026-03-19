@@ -103,7 +103,7 @@ export class LeadService {
 
     static async getLeads(queryParams: any): Promise<{ data: Lead[]; pagination: PaginationMeta }> {
         const page = Math.max(1, parseInt(queryParams.page || "1"));
-        const pageSize = Math.min(100, Math.max(1, parseInt(queryParams.pageSize || String(config.app.pageSize))));
+        const pageSize = Math.min(100, Math.max(1, parseInt(queryParams.pageSize || queryParams.limit || String(config.app.pageSize))));
         const skip = (page - 1) * pageSize;
         const filter = this.buildFilter(queryParams);
 

@@ -18,7 +18,7 @@ export function useLeadsTable() {
     const fetchLeads = useCallback(async (page = 1) => {
         setLoading(true);
         try {
-            const params: Record<string, string> = { page: String(page), pageSize: String(pagination.pageSize) };
+            const params: Record<string, string> = { page: String(page), limit: String(pagination.pageSize) };
             if (filters.search) params.search = filters.search;
             if (filters.status) params.status = filters.status;
             if (filters.score) params.score = filters.score;

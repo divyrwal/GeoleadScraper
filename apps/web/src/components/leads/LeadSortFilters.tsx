@@ -39,7 +39,9 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
     useEffect(() => {
         const fetchCountries = async () => {
             try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries`);
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries`, {
+                    headers: { "Authorization": `Bearer ${process.env.NEXT_PUBLIC_GEOLEAD_API_KEY || "fallback-secret-for-local-crm"}` }
+                });
                 const data = await res.json();
                 if (data.success) setCountries(data.data);
             } catch (e) {
@@ -56,7 +58,9 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
         }
         const fetchStates = async () => {
             try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries/${countryCode}/states`);
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries/${countryCode}/states`, {
+                    headers: { "Authorization": `Bearer ${process.env.NEXT_PUBLIC_GEOLEAD_API_KEY || "fallback-secret-for-local-crm"}` }
+                });
                 const data = await res.json();
                 if (data.success) setStates(data.data);
             } catch (e) {
@@ -73,7 +77,9 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
         }
         const fetchCities = async () => {
             try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries/${countryCode}/states/${stateCode}/cities`);
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries/${countryCode}/states/${stateCode}/cities`, {
+                    headers: { "Authorization": `Bearer ${process.env.NEXT_PUBLIC_GEOLEAD_API_KEY || "fallback-secret-for-local-crm"}` }
+                });
                 const data = await res.json();
                 if (data.success) setCities(data.data);
             } catch (e) {
@@ -87,11 +93,11 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
     useEffect(() => {
         const countryName = countries.find(c => c.code === countryCode)?.name || "";
         const stateName = states.find(s => s.code === stateCode)?.name || "";
-        
+
         const newFilters = { ...filters };
-        
+
         if (city) newFilters.city = city;
-        else if (stateName) newFilters.city = stateName; 
+        else if (stateName) newFilters.city = stateName;
         else if (countryName) newFilters.city = countryName;
         else delete newFilters.city;
 
@@ -101,8 +107,8 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
         if (stateName) newFilters.state = stateName; else delete newFilters.state;
         if (countryName) newFilters.country = countryName; else delete newFilters.country;
 
-        const isChanged = 
-            filters.city !== newFilters.city || 
+        const isChanged =
+            filters.city !== newFilters.city ||
             filters.tier !== newFilters.tier ||
             filters.state !== newFilters.state ||
             filters.country !== newFilters.country;
@@ -202,7 +208,7 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
                             </SelectTrigger>
                             <SelectContent className="max-h-[300px]">
                                 {countries.map((c) => (
-                                    <SelectItem key={c.isoCode} value={c.isoCode}>{c.name}</SelectItem>
+                                    <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -213,7 +219,7 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
                             </SelectTrigger>
                             <SelectContent className="max-h-[300px]">
                                 {states.map((s) => (
-                                    <SelectItem key={s.isoCode} value={s.isoCode}>{s.name}</SelectItem>
+                                    <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
