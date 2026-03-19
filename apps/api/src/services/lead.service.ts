@@ -13,6 +13,14 @@ export class LeadService {
         if (query.search) {
             filter.$text = { $search: query.search };
         }
+
+        // Hierarchical Location Filters
+        if (query.country) {
+            filter.address = { $regex: query.country, $options: "i" };
+        }
+        if (query.state) {
+            filter.address = { $regex: query.state, $options: "i" };
+        }
         if (query.city) {
             const cityRegex = { $regex: query.city, $options: "i" };
             const cityOr = [
@@ -20,13 +28,24 @@ export class LeadService {
                 { plus_code: cityRegex },
                 { search_query: cityRegex }
             ];
-            if (filter.$or) {
+            if (filter.$and) {
+                (filter.$and as any[]).push({ $or: cityOr });
+            } else if (filter.$or) {
                 filter.$and = [{ $or: filter.$or }, { $or: cityOr }];
                 delete filter.$or;
             } else {
                 filter.$or = cityOr;
             }
         }
+
+        // Tier Logic (Placeholder for DB-side tiering)
+        if (query.tier) {
+            // This assumes we might tag leads with tiers later
+            // For now, if a user requests "Tier 1", we could filter known Tier 1 cities
+            // But usually this will be handled by the frontend sending a city list or the backend having a 'tier' field
+            filter.city_tier = query.tier; 
+        }
+
         if (query.category) filter.category = { $regex: query.category, $options: "i" };
         if (query.status) filter.lead_status = query.status;
         if (query.score) filter.lead_score = query.score;
@@ -45,17 +64,28 @@ export class LeadService {
         if (query.hasWebsite === "true") filter.has_website = true;
         if (query.hasWebsite === "false") filter.has_website = { $ne: true };
         if (query.hasEmail === "true") filter.email = { $nin: [null, ""] };
-        if (query.hasEmail === "false") filter.$or = [{ email: null }, { email: "" }];
+        if (query.hasEmail === "false") {
+            const emailOr = [{ email: null }, { email: "" }];
+            if (filter.$and) (filter.$and as any[]).push({ $or: emailOr });
+            else if (filter.$or) {
+                 filter.$and = [{ $or: filter.$or }, { $or: emailOr }];
+                 delete filter.$or;
+            } else filter.$or = emailOr;
+        }
 
         // Pitch Target Booleans
         if (query.missingWebsite === "true") filter.has_website = { $ne: true };
         if (query.missingSocials === "true") {
-            filter.$or = filter.$or || [];
-            (filter.$or as any[]).push(
+            const socialOr = [
                 { social_links: null },
                 { "social_links.instagram": { $exists: false } },
                 { "social_links.facebook": { $exists: false } }
-            );
+            ];
+            if (filter.$and) (filter.$and as any[]).push({ $or: socialOr });
+            else if (filter.$or) {
+                 filter.$and = [{ $or: filter.$or }, { $or: socialOr }];
+                 delete filter.$or;
+            } else filter.$or = socialOr;
         }
 
         if (query.isShortlisted === "true") {

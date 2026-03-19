@@ -40,6 +40,29 @@
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
 }
 
+/* --- Utilities --- */
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.text-link {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  color: var(--accent);
+  transition: opacity var(--transition);
+}
+
+.text-link:hover {
+  opacity: 0.8;
+}
+
 /* --- Reset --- */
 *,
 *::before,
@@ -175,6 +198,78 @@ body.sidebar-mode .container {
   }
 }
 
+/* Mode Toggle Switch */
+.mode-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.mode-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.1);
+  transition: .3s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--text-dim);
+  transition: .3s;
+}
+
+input:checked + .slider {
+  background-color: var(--accent);
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+  background-color: white;
+}
+
+.slider.round {
+  border-radius: 20px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
+
 /* ========================
    Main Content
    ======================== */
@@ -184,21 +279,24 @@ body.sidebar-mode .container {
 }
 
 /* ========================
-   Config Card
+   Config Card — Glassmorphism
    ======================== */
 .config-card {
-  background: var(--bg-card);
+  background: rgba(18, 23, 30, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 /* ========================
    Form Elements
    ======================== */
 .form-group {
-  margin-bottom: 14px;
+  margin-bottom: 20px;
 }
 
 .form-group:last-child {
@@ -206,43 +304,64 @@ body.sidebar-mode .container {
 }
 
 label {
-  display: block;
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-bottom: 6px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
 }
 
 .label-icon {
-  font-size: 12px;
-  margin-right: 2px;
+  font-size: 14px;
 }
 
 input[type="text"],
-input[type="number"] {
+input[type="number"],
+.glass-select {
   width: 100%;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: 13px;
-  background: var(--bg-input);
+  background: rgba(13, 18, 25, 0.6);
   color: var(--text-bright);
   font-family: var(--font-body);
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 input[type="text"]:focus,
-input[type="number"]:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 12px rgba(88, 166, 255, 0.06);
+input[type="number"]:focus,
+.glass-select:focus {
+  border-color: var(--accent);
+  background: rgba(13, 18, 25, 0.8);
+  box-shadow: 0 0 0 4px var(--accent-soft), 0 8px 20px rgba(88, 166, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.glass-select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 40px;
+}
+
+.glass-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(1);
 }
 
 input::placeholder {
   color: var(--text-dim);
-  font-weight: 400;
+  opacity: 0.6;
 }
 
 .grid-hint {
@@ -553,6 +672,146 @@ input::placeholder {
   margin-bottom: 12px;
 }
 
+/* Buffer Explorer */
+.buffer-card {
+  background: rgba(88, 166, 255, 0.05);
+  border: 1px dashed rgba(88, 166, 255, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-top: -6px;
+  margin-bottom: 12px;
+}
+
+.buffer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.buffer-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.buffer-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+.buffer-icon {
+  font-size: 18px;
+}
+
+.buffer-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.buffer-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+#buffer-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.buffer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-bright);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all var(--transition);
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+}
+
+.success-text {
+  color: var(--green) !important;
+}
+
+/* Buffer List */
+.buffer-list {
+  margin-top: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.buffer-list-header {
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.close-icon {
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.buffer-items {
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.buffer-item {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+}
+
+.buffer-item:last-child {
+  border-bottom: none;
+}
+
+.buffer-item-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.buffer-item-loc {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
 .terminal-header {
   display: flex;
   align-items: center;
@@ -823,4 +1082,68 @@ body.sidebar-mode .terminal-log {
    ======================== */
 input[type="checkbox"] {
   accent-color: var(--accent);
+}
+
+/* ========================
+   Mode Tabs
+   ======================== */
+.mode-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-card);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.tab-btn:hover {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tab-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.mode-view.hidden {
+  display: none;
+}
+
+/* ========================
+   Bulk Input
+   ======================== */
+.glass-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: rgba(13, 18, 25, 0.6);
+  color: var(--text-bright);
+  font-family: var(--font-mono);
+  transition: all 0.3s ease;
+  outline: none;
+  resize: vertical;
+}
+
+.glass-input:focus {
+  border-color: var(--accent);
+  background: rgba(13, 18, 25, 0.8);
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }

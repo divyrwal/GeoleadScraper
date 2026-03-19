@@ -12,6 +12,9 @@ import {
 import { Search, Download, X, Phone, Globe, Mail, MapPin, Target, Star } from "lucide-react";
 import type { LeadFilter } from "@geolead/types";
 import { Badge } from "@/components/ui/badge";
+import { useState, useMemo, useEffect } from "react";
+import { Country, State, City } from "country-state-city";
+import { TIER_OPTIONS } from "@/lib/utils/location-utils";
 
 interface LeadFiltersProps {
     filters: LeadFilter;
@@ -33,14 +36,38 @@ const SCORES = [
 ];
 
 export default function LeadFilters({ filters, onFilterChange, onExport }: LeadFiltersProps) {
-    const hasActiveFilters = filters.search || filters.category || filters.status || filters.score || filters.minRating || filters.hasPhone || filters.hasWebsite || filters.hasEmail;
+    // Local state for hierarchy
+    const [countryCode, setCountryCode] = useState<string>("");
+    const [stateCode, setStateCode] = useState<string>("");
+
+    const countries = useMemo(() => Country.getAllCountries(), []);
+    const states = useMemo(() => countryCode ? State.getStatesOfCountry(countryCode) : [], [countryCode]);
+    const cities = useMemo(() => (countryCode && stateCode) ? City.getCitiesOfState(countryCode, stateCode) : [], [countryCode, stateCode]);
+
+    const hasActiveFilters = filters.search || filters.category || filters.status || filters.score || filters.minRating || filters.hasPhone || filters.hasWebsite || filters.hasEmail || filters.tier || filters.city;
 
     const clearFilters = () => {
+        setCountryCode("");
+        setStateCode("");
         onFilterChange({});
     };
 
+    // When codes change, update the names in filters
+    useEffect(() => {
+        const countryName = countryCode ? Country.getCountryByCode(countryCode)?.name : undefined;
+        const stateName = (countryCode && stateCode) ? State.getStateByCodeAndCountry(stateCode, countryCode)?.name : undefined;
+
+        const newFilters = { ...filters };
+        if (countryName) newFilters.country = countryName; else delete newFilters.country;
+        if (stateName) newFilters.state = stateName; else delete newFilters.state;
+
+        if (filters.country !== newFilters.country || filters.state !== newFilters.state) {
+            onFilterChange(newFilters);
+        }
+    }, [countryCode, stateCode, filters, onFilterChange]);
+
     return (
-        <div className="flex flex-col gap-3 p-4 border rounded-xl bg-card">
+        <div className="flex flex-col gap-3 p-4 border rounded-xl bg-card shadow-sm">
             {/* Primary Search Row */}
             <div className="flex flex-wrap items-center gap-3">
                 <div className="relative flex-1 min-w-[200px]">
@@ -58,7 +85,7 @@ export default function LeadFilters({ filters, onFilterChange, onExport }: LeadF
                     variant={filters.hasPhone ? "default" : "outline"}
                     size="sm"
                     onClick={() => onFilterChange({ ...filters, hasPhone: filters.hasPhone ? undefined : true })}
-                    className="gap-1"
+                    className="gap-1 font-medium"
                 >
                     <Phone className="h-3.5 w-3.5" />
                     Phone
@@ -69,7 +96,7 @@ export default function LeadFilters({ filters, onFilterChange, onExport }: LeadF
                     variant={filters.hasWebsite ? "default" : "outline"}
                     size="sm"
                     onClick={() => onFilterChange({ ...filters, hasWebsite: filters.hasWebsite ? undefined : true })}
-                    className="gap-1"
+                    className="gap-1 font-medium"
                 >
                     <Globe className="h-3.5 w-3.5" />
                     Website
@@ -80,7 +107,7 @@ export default function LeadFilters({ filters, onFilterChange, onExport }: LeadF
                     variant={filters.hasEmail ? "default" : "outline"}
                     size="sm"
                     onClick={() => onFilterChange({ ...filters, hasEmail: filters.hasEmail ? undefined : true })}
-                    className="gap-1"
+                    className="gap-1 font-medium"
                 >
                     <Mail className="h-3.5 w-3.5" />
                     Email
@@ -129,25 +156,80 @@ export default function LeadFilters({ filters, onFilterChange, onExport }: LeadF
                 </Button>
             </div>
 
-            {/* Advanced Pitch Targets Row */}
+            {/* Global Location Row */}
+            <div className="flex flex-wrap items-center gap-3 border-t pt-3">
+                <div className="flex items-center gap-2 mr-2">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold text-muted-foreground">Geography:</span>
+                </div>
+
+                <Select value={countryCode} onValueChange={(v) => { setCountryCode(v); setStateCode(""); onFilterChange({ ...filters, city: undefined, tier: undefined }); }}>
+                    <SelectTrigger className="w-[160px] h-8 text-xs">
+                        <SelectValue placeholder="Country" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                        {countries.map((c) => (
+                            <SelectItem key={c.isoCode} value={c.isoCode}>{c.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select value={stateCode} onValueChange={(v) => { setStateCode(v); onFilterChange({ ...filters, city: undefined, tier: undefined }); }} disabled={!countryCode}>
+                    <SelectTrigger className="w-[160px] h-8 text-xs">
+                        <SelectValue placeholder="State/Region" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                        {states.map((s) => (
+                            <SelectItem key={s.isoCode} value={s.isoCode}>{s.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select 
+                    value={filters.city || "all"} 
+                    onValueChange={(v) => onFilterChange({ ...filters, city: v === "all" ? undefined : v, tier: undefined })}
+                    disabled={!stateCode}
+                >
+                    <SelectTrigger className="w-[160px] h-8 text-xs">
+                        <SelectValue placeholder="City" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                        <SelectItem value="all">All Cities</SelectItem>
+                        {cities.map((c) => (
+                            <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select 
+                    value={filters.tier || "all"} 
+                    onValueChange={(v) => onFilterChange({ ...filters, tier: v === "all" ? undefined : v })}
+                >
+                    <SelectTrigger className="w-[160px] h-8 text-xs border-primary/20 bg-primary/5">
+                        <SelectValue placeholder="City Tier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Any Tier</SelectItem>
+                        {TIER_OPTIONS.map((t) => (
+                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <div className="h-4 w-px bg-border mx-1" />
+
+                <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground py-0">Global Data Enabled</Badge>
+            </div>
+
+            {/* Advanced Filters Row */}
             <div className="flex items-center gap-3 border-t pt-3">
                 <Badge variant="secondary" className="font-normal text-muted-foreground mr-2">Agency Targets:</Badge>
-
-                <div className="relative w-[150px]">
-                    <MapPin className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                        placeholder="City / Area"
-                        className="pl-8 h-8 text-xs"
-                        value={filters.city || ""}
-                        onChange={(e) => onFilterChange({ ...filters, city: e.target.value || undefined })}
-                    />
-                </div>
 
                 <div className="relative w-[130px]">
                     <Star className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                         type="number"
-                        placeholder="Max Rating (e.g. 3.5)"
+                        placeholder="Max Rating"
                         className="pl-8 h-8 text-xs"
                         step="0.1"
                         max="5"
@@ -155,8 +237,6 @@ export default function LeadFilters({ filters, onFilterChange, onExport }: LeadF
                         onChange={(e) => onFilterChange({ ...filters, maxRating: e.target.value ? parseFloat(e.target.value) : undefined })}
                     />
                 </div>
-
-                <div className="h-4 w-px bg-border" />
 
                 <Button
                     variant={filters.missingWebsite ? "default" : "outline"}

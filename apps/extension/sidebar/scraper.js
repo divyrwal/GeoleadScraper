@@ -1,7 +1,7 @@
 /**
  * sidebar/scraper.js
  * Scraper process controller linking UI to background service workers.
- * v7.0 — No tabs, no autopilot. Always grid scan mode.
+ * Multi-tab / Bulk Queue support.
  */
 
 export class ScraperController {
@@ -56,161 +56,252 @@ export class ScraperController {
                 });
             });
         }
+
+        // Buffer Actions
+        this.ui.uploadBufferBtn.addEventListener('click', () => this.manualFlush());
+        this.ui.downloadBufferBtn.addEventListener('click', () => this.downloadBuffer());
+        this.ui.viewBufferBtn.addEventListener('click', () => this.toggleBufferView());
+        this.ui.closeBufferBtn.addEventListener('click', () => this.ui.bufferList.classList.add('hidden'));
+
+        // Clear Bulk
+        const clearBulkBtn = document.getElementById('clear-bulk-queries');
+        if (clearBulkBtn) {
+            clearBulkBtn.addEventListener('click', () => {
+                this.ui.bulkQueries.value = '';
+                this.term.add('🗑 Queue cleared', 'info');
+            });
+        }
+
+        // Periodic buffer check
+        setInterval(() => this.updateBufferStatus(), 2000);
+    }
+
+    updateBufferStatus() {
+        if (!this.ui.browserSaveMode.checked && !this.ui.bulkSaveMode.checked) {
+            this.ui.bufferSection.classList.add('hidden');
+            return;
+        }
+
+        this.ui.bufferSection.classList.remove('hidden');
+        chrome.runtime.sendMessage({ action: 'get_buffer' }, (response) => {
+            if (response && response.success) {
+                this.ui.bufferCount.textContent = `${response.total} leads`;
+                if (this.lastBufferTotal !== response.total && !this.ui.bufferList.classList.contains('hidden')) {
+                    this.renderBuffer(response.leads);
+                }
+                this.lastBufferTotal = response.total;
+            }
+        });
+    }
+
+    manualFlush() {
+        this.term.add('☁️ Manual upload triggered...', 'info');
+        chrome.runtime.sendMessage({ action: 'manual_flush' }, (response) => {
+            if (response && response.success) {
+                this.term.add('✅ Manual upload complete', 'success');
+            } else {
+                this.term.add(`❌ Manual upload failed: ${response?.error || 'Unknown error'}`, 'error');
+            }
+        });
+    }
+
+    downloadBuffer() {
+        this.term.add('📥 Preparing file download...', 'info');
+        chrome.runtime.sendMessage({ action: 'get_buffer', full: true }, (response) => {
+            if (!response || !response.success || !response.leads || response.leads.length === 0) {
+                this.term.add('⚠ Buffer is empty', 'warn');
+                return;
+            }
+
+            const data = {
+                leads: response.leads,
+                exported_at: new Date().toISOString(),
+                total: response.leads.length
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            a.href = url;
+            a.download = `geoleads_export_${timestamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+
+            this.term.add(`✅ Downloaded ${response.leads.length} leads as JSON`, 'success');
+        });
+    }
+
+    toggleBufferView() {
+        const isHidden = this.ui.bufferList.classList.toggle('hidden');
+        if (!isHidden) {
+            chrome.runtime.sendMessage({ action: 'get_buffer' }, (response) => {
+                if (response && response.success) {
+                    this.renderBuffer(response.leads);
+                }
+            });
+        }
+    }
+
+    renderBuffer(leads) {
+        this.ui.bufferItems.innerHTML = '';
+        if (!leads || leads.length === 0) {
+            this.ui.bufferItems.innerHTML = '<div class="buffer-item"><span class="buffer-item-name">No leads buffered yet</span></div>';
+            return;
+        }
+
+        leads.reverse().forEach(lead => {
+            const div = document.createElement('div');
+            div.className = 'buffer-item';
+            div.innerHTML = `
+                <span class="buffer-item-name">${lead.name || 'Unknown'}</span>
+                <span class="buffer-item-loc">${lead.city || ''} ${lead.phone ? ` • ${lead.phone}` : ''}</span>
+            `;
+            this.ui.bufferItems.appendChild(div);
+        });
     }
 
     async startExtraction() {
-        await this.state.checkActiveTab();
-
         this.state.totalSaved = 0;
         this.state.totalDuplicates = 0;
-        this.state.extractionStartTime = Date.now();
         this.term.clear();
 
-        // Reset counters
+        // Common UI resetting
         this.ui.savedCount.textContent = '0';
         this.ui.dupCount.textContent = '0';
         this.ui.foundCount.textContent = '0';
         this.ui.scrapedCount.textContent = '0';
-
-        // UI state: scanning
         this.ui.extractBtn.disabled = true;
         this.ui.extractBtn.classList.add('scanning');
-        this.ui.extractBtn.querySelector('.btn-text').textContent = "Scanning...";
         this.ui.stopBtn.classList.remove('hidden');
         this.ui.progressSection.classList.remove('hidden');
-        this.ui.progressBar.style.width = '0%';
-        this.ui.progressPercent.textContent = '0%';
-        this.ui.progressMessage.textContent = 'Initializing scanner...';
         this.ui.resultsDiv.classList.remove('hidden');
 
-        const query = this.ui.browserQuery.value.trim();
-        const location = this.ui.browserLocation.value.trim();
-
-        // Grid scan mode (primary)
-        if (query && location) {
-            this.term.add(`Grid Scan: "${query}" in "${location}"`, 'info');
-
-            chrome.runtime.sendMessage({
-                action: "start_grid_scan",
-                query, location,
-                gridSize: parseInt(this.ui.browserGridSize.value) || 3,
-                targetTabId: this.state.tabData.id
-            }, (response) => {
-                if (chrome.runtime.lastError) { /* bg async */ }
-                if (response && response.error) {
-                    this.term.add(`ERROR: ${response.error}`, 'error');
-                    this.onComplete(0, 0);
-                }
-            });
-            return;
-        }
-
-        // Single page fallback
-        if (!this.state.isGoogleMaps) {
-            this.term.add('Enter a query + location, or navigate to Google Maps', 'error');
-            this.onComplete(0, 0);
-            return;
-        }
-
-        this.term.add('Single page extraction...', 'info');
-        try {
-            chrome.tabs.sendMessage(this.state.tabData.id, {
-                action: "extract_all"
-            }, (response) => {
-                if (chrome.runtime.lastError) {
-                    this.onComplete(0, 0);
-                    this.term.add('Content script not loaded. Refresh Maps.', 'error');
-                    return;
-                }
-                if (response && response.error) {
-                    this.onComplete(0, 0);
-                    this.term.add(`Error: ${response.error}`, 'error');
-                }
-            });
-        } catch (err) {
-            this.onComplete(0, 0);
-            this.term.add(`Fatal: ${err.message}`, 'error');
+        if (this.ui.activeMode === 'bulk') {
+            this.startBulkCampaign();
+        } else {
+            this.startSingleScan();
         }
     }
 
-    async stopExtraction() {
-        await this.state.checkActiveTab();
-
-        // Always try both stop methods
-        chrome.runtime.sendMessage({ action: "stop_grid_scan" });
-        if (this.state.tabData) {
-            chrome.tabs.sendMessage(this.state.tabData.id, { action: "stop" });
+    async startBulkCampaign() {
+        const queryText = this.ui.bulkQueries.value.trim();
+        if (!queryText) {
+            this.term.add("❌ Error: No queries provided for bulk mode.", "error");
+            this.onComplete(0, 0);
+            return;
         }
 
+        const queries = queryText.split('\n').map(q => q.trim()).filter(q => q);
+        const maxTabs = parseInt(this.ui.bulkParallelTabs.value) || 2;
+        const saveMode = this.ui.bulkSaveMode.checked;
+
+        this.term.add(`🚀 Campaign Started: ${queries.length} queries across ${maxTabs} tabs...`, "info");
+        this.ui.progressMessage.textContent = "Deploying workers...";
+
+        chrome.runtime.sendMessage({
+            action: "start_campaign",
+            queries,
+            location: "", // Query itself usually contains location in bulk list
+            maxTabs,
+            saveMode,
+            gridSize: 3 // Default for bulk
+        });
+    }
+
+    async startSingleScan() {
+        await this.state.checkActiveTab();
+        const query = this.ui.browserQuery.value.trim();
+        const country = this.ui.browserCountry.options[this.ui.browserCountry.selectedIndex]?.text || '';
+        const state = this.ui.browserState.options[this.ui.browserState.selectedIndex]?.text || '';
+        const city = this.ui.browserLocation.value.trim();
+
+        let combinedLocation = "";
+        if (city) combinedLocation += city;
+        if (state && state !== "Select State") combinedLocation += (combinedLocation ? ", " : "") + state;
+        if (country && country !== "Select Country") combinedLocation += (combinedLocation ? ", " : "") + country;
+        
+        const locationStr = combinedLocation || "";
+
+        if (!query) {
+            this.term.add("❌ Error: Query is required.", "error");
+            this.onComplete(0, 0);
+            return;
+        }
+
+        this.term.add(`Grid Scan: "${query}" in "${locationStr}"`, 'info');
+        chrome.runtime.sendMessage({
+            action: "start_grid_scan",
+            query, 
+            location: locationStr,
+            gridSize: parseInt(this.ui.browserGridSize.value) || 3,
+            saveMode: this.ui.browserSaveMode.checked,
+            targetTabId: this.state.tabData.id
+        });
+    }
+
+    async stopExtraction() {
+        chrome.runtime.sendMessage({ action: "stop_grid_scan" });
         this.ui.stopBtn.classList.add('hidden');
         this.ui.progressMessage.textContent = "⛔ Stopping...";
         this.term.add('Stop signal sent.', 'error');
     }
 
     handleMessage(message) {
-        // Only process messages from background (tagged with _fromBg)
-        if ((message.type === 'progress' || message.type === 'extraction_done' || message.type === 'save_result') && !message._fromBg) {
-            return;
-        }
+        if (!message._fromBg) return;
 
         if (message.type === "progress") {
             this.ui.progressSection.classList.remove('hidden');
             this.ui.resultsDiv.classList.remove('hidden');
-            this.ui.foundCount.textContent = message.found || 0;
-            this.ui.scrapedCount.textContent = message.scraped || 0;
+            
+            // Stats sync
+            if (message.found !== undefined) this.ui.foundCount.textContent = message.found;
+            if (message.scraped !== undefined) this.ui.scrapedCount.textContent = message.scraped;
+            
             this.ui.progressMessage.textContent = message.message || "";
 
-            // Extract zone info from message
-            const zoneMatch = message.message?.match(/\[Zone (\d+)\/(\d+)\]/);
-            if (zoneMatch) {
-                this.ui.progressZone.textContent = `Zone ${zoneMatch[1]} / ${zoneMatch[2]}`;
+            // Worker-specific logging with smaller font or tag
+            if (message.message) {
+                const prefix = message.workerId ? `[Worker ${message.workerId.slice(-4)}] ` : "";
+                this.term.add(prefix + message.message, message.status === 'error' ? 'error' : 'info');
             }
 
-            // Log to terminal
-            if (message.message && message.status !== 'searching' && message.status !== 'scrolling') {
-                let logType = '';
-                if (message.status === 'done') logType = message.message.includes('❌') ? 'error' : 'success';
-                else if (message.status === 'navigating') logType = 'info';
-                this.term.add(message.message, logType);
-            }
-
-            // Progress bar
-            if (message.processed && message.found) {
+            if (message.campaignTotal > 0) {
+                // Bulk mode progress: based on queries completed
+                const completed = message.campaignTotal - message.campaignQueue - 1; 
+                const pct = Math.max(0, Math.round((completed / message.campaignTotal) * 100));
+                this.ui.progressBar.style.width = `${pct}%`;
+                this.ui.progressPercent.textContent = `${pct}%`;
+                
+                // Show aggregate found count
+                this.ui.foundCount.textContent = message.campaignFound || 0;
+                this.ui.scrapedCount.textContent = message.campaignFound || 0;
+            } else if (message.processed && message.found) {
+                // Single mode progress
                 const pct = Math.round((message.processed / message.found) * 100);
                 this.ui.progressBar.style.width = `${pct}%`;
                 this.ui.progressPercent.textContent = `${pct}%`;
             }
-
-            if (message.status === "done") {
-                this.onComplete(message.found, message.scraped);
-            }
-        }
-
-        if (message.type === "save_result") {
-            this.state.totalSaved += (message.inserted || 0);
-            this.state.totalDuplicates += (message.updated || 0) + (message.skipped || 0);
-            this.ui.savedCount.textContent = this.state.totalSaved;
-            this.ui.dupCount.textContent = this.state.totalDuplicates;
-
-            if (message.inserted > 0) {
-                this.term.add(`💾 Saved ${message.inserted} leads`, 'success');
-            }
         }
 
         if (message.type === "extraction_done") {
-            this.onComplete(message.total_found, message.total_scraped);
+            this.onComplete(0, message.total_scraped);
         }
     }
 
     onComplete(found, scraped) {
         this.ui.extractBtn.classList.remove('scanning');
         this.ui.extractBtn.disabled = false;
-        this.ui.extractBtn.querySelector('.btn-text').textContent = "Start Grid Scan";
+        this.ui.extractBtn.querySelector('.btn-text').textContent = 
+            this.ui.activeMode === 'bulk' ? "Start Bulk Campaign" : "Start Grid Scan";
         this.ui.stopBtn.classList.add('hidden');
-        this.ui.progressBar.style.width = '100%';
-        this.ui.progressPercent.textContent = '100%';
-        this.ui.progressMessage.textContent = '✅ Scan Complete';
-
-        this.term.add(`✅ Complete: ${scraped} leads extracted`, 'success');
+        this.ui.progressMessage.textContent = '✅ Mission Complete';
+        this.term.add(`✅ Complete: ${scraped} leads gathered.`, 'success');
     }
 }

@@ -34,8 +34,15 @@
         <!-- Main Content -->
         <main class="main-content">
 
-            <!-- Search Config Card -->
-            <section class="config-card">
+            <!-- Mode Tabs -->
+            <div class="mode-tabs">
+                <button id="tab-single" class="tab-btn active" data-tab="single">Single Search</button>
+                <button id="tab-bulk" class="tab-btn" data-tab="bulk">Bulk Queue (100+)</button>
+            </div>
+
+            <!-- Single Mode View -->
+            <div id="view-single" class="mode-view">
+                <section class="config-card">
                 <div class="form-group">
                     <label for="browser-query">
                         <span class="label-icon">🔍</span> Search Query
@@ -44,12 +51,29 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="browser-country">
+                        <span class="label-icon">🌍</span> Country
+                    </label>
+                    <select id="browser-country" class="glass-select">
+                        <option value="">Select Country</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="browser-state">
+                        <span class="label-icon">🗺️</span> State/Region
+                    </label>
+                    <select id="browser-state" class="glass-select" disabled>
+                        <option value="">Select State</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label for="browser-location">
-                        <span class="label-icon">📍</span> Location
+                        <span class="label-icon">📍</span> City
                     </label>
                     <div class="autocomplete-wrapper">
-                        <input type="text" id="browser-location" placeholder="Start typing a city..."
-                            autocomplete="off">
+                        <input type="text" id="browser-location" placeholder="City name..." autocomplete="off">
                     </div>
                 </div>
 
@@ -66,7 +90,68 @@
                     <input type="hidden" id="browser-grid-size" value="3">
                     <p class="grid-hint">Higher density = more zones = more unique leads</p>
                 </div>
-            </section>
+
+                <div class="form-group">
+                    <label>
+                        <span class="label-icon">💾</span> Saving Mode
+                    </label>
+                    <div class="mode-toggle-container">
+                        <span class="mode-label">Live</span>
+                        <label class="switch">
+                            <input type="checkbox" id="browser-save-mode">
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="mode-label">Saving</span>
+                    </div>
+                    <p class="grid-hint">Saving mode buffers leads locally and uploads them at the end.</p>
+                </div>
+                </div>
+            </div>
+
+            <!-- Bulk Mode View -->
+            <div id="view-bulk" class="mode-view hidden">
+                <section class="config-card">
+                    <div class="form-group">
+                        <div class="flex-between">
+                            <label for="bulk-queries">
+                                <span class="label-icon">📋</span> Query Queue
+                            </label>
+                            <button id="clear-bulk-queries" class="text-link danger-text">Clear</button>
+                        </div>
+                        <textarea id="bulk-queries" class="glass-input" placeholder="Hotels in London
+Coffee Shops in Paris
+Dentists in New York" rows="8"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bulk-parallel">
+                            <span class="label-icon">📑</span> Parallel Browser Tabs
+                        </label>
+                        <div class="segmented-control" id="bulk-parallel-group">
+                            <button class="seg-btn" data-value="1">1</button>
+                            <button class="seg-btn active" data-value="2">2</button>
+                            <button class="seg-btn" data-value="3">3</button>
+                            <button class="seg-btn" data-value="5">5</button>
+                        </div>
+                        <input type="hidden" id="bulk-parallel-tabs" value="2">
+                        <p class="grid-hint">Higher = Faster, but risks Google rate limits/CAPTCHA.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <span class="label-icon">💾</span> Auto-Upload Mode
+                        </label>
+                        <div class="mode-toggle-container">
+                            <span class="mode-label">Batch</span>
+                            <label class="switch">
+                                <input type="checkbox" id="bulk-save-mode" checked>
+                                <span class="slider round"></span>
+                            </label>
+                            <span class="mode-label">Direct</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
 
             <!-- Status Bar -->
             <div class="status-bar">
@@ -118,6 +203,32 @@
                 </div>
             </section>
 
+            <!-- Buffer Explorer (Saving Mode only) -->
+            <section id="buffer-section" class="buffer-section buffer-card hidden">
+                <div class="buffer-header">
+                    <div class="buffer-info">
+                        <span class="buffer-dot online"></span>
+                        <span class="buffer-label">Local Buffer:</span>
+                        <span id="buffer-count" class="buffer-value">0 leads</span>
+                    </div>
+                    <div class="buffer-actions">
+                        <button id="view-buffer-btn" class="icon-btn" title="View Leads">👁️</button>
+                        <button id="upload-buffer-btn" class="icon-btn success-text" title="Upload Now">📤</button>
+                        <button id="download-buffer-btn" class="icon-btn" title="Download JSON">💾</button>
+                    </div>
+                </div>
+                <!-- Mini Preview List -->
+                <div id="buffer-list" class="buffer-list hidden">
+                    <div class="buffer-list-header">
+                        <span>Recent Local Leads</span>
+                        <span id="close-buffer-btn" class="close-icon">&times;</span>
+                    </div>
+                    <div id="buffer-items" class="buffer-items">
+                        <!-- Items injected here -->
+                    </div>
+                </div>
+            </section>
+
             <!-- Terminal -->
             <section class="terminal-section">
                 <div class="terminal-header">
@@ -140,7 +251,7 @@
 
             <!-- Inline Settings -->
             <div id="settings-panel" class="settings-inline hidden">
-                <div class="form-group">
+                <div class="form-group border-t pt-3 mt-1">
                     <label for="api-url">API Endpoint</label>
                     <input type="text" id="api-url" value="http://localhost:4000">
                 </div>

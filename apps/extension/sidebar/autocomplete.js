@@ -99,7 +99,17 @@ export class LocationAutocomplete {
         this.abortController = new AbortController();
 
         try {
-            const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=${this.limit}&osm_tag=place:city&osm_tag=place:town&lang=en`;
+            const countryEl = document.getElementById('browser-country');
+            const stateEl = document.getElementById('browser-state');
+            
+            const country = countryEl?.options[countryEl.selectedIndex]?.text || '';
+            const state = stateEl?.options[stateEl.selectedIndex]?.text || '';
+            
+            let contextQuery = query;
+            if (state && state !== "Select State") contextQuery += `, ${state}`;
+            if (country && country !== "Select Country") contextQuery += `, ${country}`;
+
+            const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(contextQuery)}&limit=${this.limit}&osm_tag=place:city&osm_tag=place:town&lang=en`;
 
             const response = await fetch(url, {
                 signal: this.abortController.signal

@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Loader2, Trash2, Database } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Trash2, Database, Upload } from "lucide-react";
 
 import LeadFilters from "@/components/leads/LeadFilters";
 import LeadDetailModal from "@/components/leads/LeadDetailModal";
+import ImportLeadsModal from "@/components/leads/ImportLeadsModal";
 import { api } from "@/lib/api";
 
 import { useLeadsTable } from "@/hooks/useLeadsTable";
@@ -24,6 +25,7 @@ export default function LeadsPage() {
     } = useLeadsTable();
 
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+    const [importModalOpen, setImportModalOpen] = useState(false);
 
     const handleRemoveDuplicates = async () => {
         if (!confirm("Remove all duplicate leads? We will keep the original entry and delete all newer duplicates. This cannot be undone.")) return;
@@ -65,6 +67,10 @@ export default function LeadsPage() {
                     <p className="text-muted-foreground">Manage and organize your extracted business data.</p>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setImportModalOpen(true)} className="gap-2">
+                        <Upload className="h-4 w-4" />
+                        Import Leads
+                    </Button>
                     <Button variant="outline" onClick={handleRemoveDuplicates} disabled={bulkLoading} className="gap-2">
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
                         Remove Duplicates
@@ -138,6 +144,12 @@ export default function LeadsPage() {
                 <LeadDetailModal lead={selectedLead} onClose={() => setSelectedLead(null)}
                     onUpdate={(updated) => { updateLeadInState(updated); setSelectedLead(updated); }} />
             )}
+
+            <ImportLeadsModal 
+                open={importModalOpen} 
+                onOpenChange={setImportModalOpen} 
+                onImportSuccess={() => fetchLeads(1)}
+            />
         </div>
     );
 }

@@ -21,10 +21,11 @@ export class AppState {
     async init() {
         await this.checkActiveTab();
 
-        chrome.storage.local.get(['apiUrl', 'browserQuery', 'browserLocation', 'browserGridSize'], (result) => {
+        chrome.storage.local.get(['apiUrl', 'browserQuery', 'browserLocation', 'browserGridSize', 'browserSaveMode'], (result) => {
             if (result.apiUrl) this.ui.apiUrlInput.value = result.apiUrl;
             if (result.browserQuery) this.ui.browserQuery.value = result.browserQuery;
             if (result.browserLocation) this.ui.browserLocation.value = result.browserLocation;
+            if (result.browserSaveMode !== undefined) this.ui.browserSaveMode.checked = result.browserSaveMode;
             if (result.browserGridSize) {
                 this.ui.browserGridSize.value = result.browserGridSize;
                 // Restore active button
@@ -89,13 +90,15 @@ export class AppState {
             chrome.storage.local.set({
                 browserQuery: this.ui.browserQuery.value,
                 browserLocation: this.ui.browserLocation.value,
-                browserGridSize: this.ui.browserGridSize.value
+                browserGridSize: this.ui.browserGridSize.value,
+                browserSaveMode: this.ui.browserSaveMode.checked
             });
         };
 
         this.ui.browserQuery.addEventListener('input', saveConfig);
         this.ui.browserLocation.addEventListener('input', saveConfig);
         this.ui.browserGridSize.addEventListener('change', saveConfig);
+        this.ui.browserSaveMode.addEventListener('change', saveConfig);
 
         // Settings save
         this.ui.saveSettingsBtn.addEventListener('click', () => {

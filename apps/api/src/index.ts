@@ -19,6 +19,7 @@ import { scrapeSessionsRouter } from "./routes/scrape-sessions";
 import { leadsEnrichRouter } from "./routes/leads-enrich";
 import { advancedSearchRouter } from "./routes/advanced-search";
 import { leadsAuditRouter } from "./routes/leads-audit";
+import { locationsRouter } from "./routes/locations";
 import { errorHandler } from "./middlewares/error.middleware";
 import { requireAuth } from "./middlewares/auth.middleware";
 import pinoHttp from "pino-http";
@@ -45,6 +46,7 @@ app.use(express.json({ limit: "10mb" }));
 
 // Mount routes
 app.use("/api/health", healthRouter);
+app.use("/api/locations", locationsRouter);
 app.use("/api/stats", requireAuth, statsRouter);
 app.use("/api/analytics", requireAuth, analyticsRouter);
 app.use("/api/search", requireAuth, advancedSearchRouter);

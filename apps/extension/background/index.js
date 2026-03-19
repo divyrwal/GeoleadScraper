@@ -10,67 +10,58 @@ import { scanner } from './scanner.js';
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => { });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // Handle debug log entries from content script
+    // 1. Log Relay
     if (message.type === 'debug_log_entry') {
         logger.log(message.level, message.source, message.message, message.data);
         return false;
     }
 
-    // Forward progress and lead messages to sidebar
-    if (message.type === 'progress' || message.type === 'leads_batch' || message.type === 'extraction_done') {
-        scanner.lastActivityTime = Date.now();
-
-        if (message.type === 'progress' && scanner.isScanning) {
-            if (message.found !== undefined) message.found += scanner.totalLeads;
-            if (message.scraped !== undefined) message.scraped += scanner.totalLeads;
-
-            const zoneIndex = scanner.totalZones - scanner.queue.length;
-            if (message.message && !message.message.includes('[Zone')) {
-                message.message = `[Zone ${zoneIndex}/${scanner.totalZones}] ${message.message}`;
-            }
-
-            if (message.status === 'extracting' && message.found > 0) {
-                const perCardTimeout = 5000;
-                const dynamicTimeout = Math.max(message.found * perCardTimeout, scanner.ZONE_TIMEOUT_MS);
-                if (dynamicTimeout > scanner.currentZoneTimeout) {
-                    logger.log('INFO', 'BG', `Scaling zone watchdog to ${dynamicTimeout / 1000}s for ${message.found} targets`);
-                    scanner.startZoneWatchdog(dynamicTimeout);
+    // 2. Worker Progress Relay
+    if (message.type === 'progress' || message.type === 'extraction_done') {
+        if (scanner.isScanning && sender.tab) {
+            const worker = Array.from(scanner.workers.values()).find(w => w.tabId === sender.tab.id);
+            if (worker) {
+                message.workerId = worker.id;
+                message._fromBg = true;
+                
+                // Trigger next zone if done
+                if (message.status === 'done' || message.type === 'extraction_done') {
+                    worker.handleZoneDone(message);
                 }
             }
         }
-
-        // Tag so sidebar knows this is the authoritative relay
-        message._fromBg = true;
-        // Detect zone completion: content sends type:'progress' + status:'done'
-        const isExtractionDone =
-            (message.type === 'extraction_done') ||
-            (message.type === 'progress' && message.status === 'done');
-
-        if (isExtractionDone && scanner.isScanning) {
-            // Normalize field names for handleExtractionDone
-            scanner.handleExtractionDone({
-                total_found: message.total_found || message.found || 0,
-                total_scraped: message.total_scraped || message.scraped || 0,
-                stopped: message.stopped || false,
-                message: message.message
-            });
-        } else {
+        
+        if (message._fromBg) {
             chrome.runtime.sendMessage(message).catch(() => { });
+        }
+        return false;
+    }
+
+    // 3. Leads Relay
+    if (message.type === 'leads_batch' && message.leads) {
+        if (scanner.isScanning && sender.tab) {
+            const worker = Array.from(scanner.workers.values()).find(w => w.tabId === sender.tab.id);
+            if (worker) worker.handleLeadsBatch(message.leads);
         }
     }
 
-    if (message.type === 'leads_batch' && message.leads) {
-        scanner.handleLeadsBatch(message);
+    // 4. Action Handlers
+    if (message.action === 'start_grid_scan') {
+        // Legacy Support for single tab mode (treated as 1-tab campaign)
+        scanner.startBulk([message.query], message.location, message.gridSize || 3, 1, message.saveMode)
+        .catch(err => {
+            chrome.runtime.sendMessage({ type: "progress", _fromBg: true, status: "error", message: `❌ Error: ${err.message}` });
+        });
+        sendResponse({ started: true });
+        return true;
     }
 
-    if (message.action === 'start_grid_scan') {
-        logger.log('INFO', 'BG', `Grid scan requested: q="${message.query}", loc="${message.location}", grid=${message.gridSize || 3}x${message.gridSize || 3}, speed=${message.speed}, tab=${message.targetTabId}`);
-        scanner.startScan(message.query, message.location, message.speed, message.targetTabId, message.gridSize || 3)
-            .catch(err => {
-                logger.log('ERROR', 'BG', `Grid scan failed: ${err.message}`);
-                chrome.runtime.sendMessage({ type: "progress", status: "done", message: `❌ Error: ${err.message}` }).catch(() => { });
-                chrome.runtime.sendMessage({ type: "extraction_done", total_found: 0, total_scraped: 0 }).catch(() => { });
-            });
+    if (message.action === 'start_campaign') {
+        logger.log('INFO', 'BG', `Campaign started: ${message.queries.length} queries, ${message.maxTabs} tabs`);
+        scanner.startBulk(message.queries, message.location, message.gridSize || 3, message.maxTabs || 3, message.saveMode)
+        .catch(err => {
+            chrome.runtime.sendMessage({ type: "progress", _fromBg: true, status: "error", message: `❌ Campaign Error: ${err.message}` });
+        });
         sendResponse({ started: true });
         return true;
     }
@@ -80,78 +71,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return false;
     }
 
-    if (message.action === 'clear_dedup_cache') {
-        scanner.globalSeenIds.clear();
-        logger.log('INFO', 'BG', 'Dedup cache cleared');
-        sendResponse({ cleared: true, message: "Dedup cache cleared." });
-        return false;
-    }
-
-    if (message.action === 'get_debug_log') {
-        chrome.storage.local.get(['_debugLog'], (result) => {
-            sendResponse({ log: result._debugLog || [] });
-        });
-        return true;
-    }
-
-    if (message.action === 'clear_debug_log') {
-        chrome.storage.local.set({ _debugLog: [] });
-        sendResponse({ cleared: true });
+    if (message.action === 'get_buffer') {
+        const leads = message.full ? scanner.bufferedLeads : scanner.bufferedLeads.slice(-20);
+        sendResponse({ success: true, leads, total: scanner.bufferedLeads.length });
         return false;
     }
 
     return false;
 });
 
-// Tab Navigation Listener for Grid Scanning
+// Multi-Tab Injection Listener with faster response
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (scanner.isScanning && tabId === scanner.currentTargetTabId && changeInfo.status === 'complete' && !scanner.zoneInjected) {
-        scanner.zoneInjected = true;
-        const zoneIndex = scanner.totalZones - scanner.queue.length;
+    if (!scanner.isScanning) return;
 
-        chrome.runtime.sendMessage({
-            type: "progress",
-            message: `[Zone ${zoneIndex}/${scanner.totalZones}] 🗺 Maps loaded. Deploying scraper in 5s...`,
-            found: scanner.totalLeads, scraped: scanner.totalLeads
-        }).catch(() => { });
+    const worker = Array.from(scanner.workers.values()).find(w => w.tabId === tabId);
+    if (!worker) return;
 
+    // Check for both 'complete' status OR URL change to maps
+    if (changeInfo.status === 'complete' || (changeInfo.url && changeInfo.url.includes('google.com/maps'))) {
+        if (worker.zoneInjected) return;
+        
+        // Final guard: only inject if we are actually at our target URL
+        if (!tab.url || !tab.url.includes('google.com/maps/search/')) return;
+
+        worker.zoneInjected = true;
+        logger.log('INFO', `Worker ${worker.id}`, `Tab ${tabId} ready. Dispatching...`);
+
+        // Small grace period for Maps internal redirect/vortex
         setTimeout(() => {
-            if (!scanner.isScanning) return;
-
-            chrome.tabs.sendMessage(tabId, { action: "reset" }, () => {
-                if (chrome.runtime.lastError) { /* content script not ready yet */ }
-            });
-
+            chrome.tabs.sendMessage(tabId, { action: "reset" }).catch(() => {});
+            
             setTimeout(() => {
-                if (!scanner.isScanning) return;
                 chrome.tabs.sendMessage(tabId, {
                     action: "extract_all",
-                    speed: scanner.extractionSpeed,
-                    bounds: scanner.gridBounds || null
-                }, (response) => {
-                    if (chrome.runtime.lastError) {
-                        logger.log('WARN', 'BG', `Zone ${zoneIndex} inject failed, retrying in 3s...`);
-                        setTimeout(() => {
-                            if (!scanner.isScanning) return;
-                            chrome.tabs.sendMessage(tabId, {
-                                action: "extract_all",
-                                speed: scanner.extractionSpeed,
-                                bounds: scanner.gridBounds || null
-                            }, (retryResponse) => {
-                                if (chrome.runtime.lastError) {
-                                    logger.log('ERROR', 'BG', `Zone ${zoneIndex} inject failed after retry. Skipping.`);
-                                    chrome.runtime.sendMessage({
-                                        type: "progress", _fromBg: true, status: "navigating",
-                                        message: `[Zone ${zoneIndex}/${scanner.totalZones}] ⚠ Failed to inject. Skipping zone...`,
-                                        found: scanner.totalLeads, scraped: scanner.totalLeads
-                                    }).catch(() => { });
-                                    setTimeout(() => scanner.nextZone(), 1500);
-                                }
-                            });
-                        }, 3000);
-                    }
+                    speed: worker.speed,
+                    workerId: worker.id
+                }).catch(err => {
+                    logger.log('WARN', `Worker ${worker.id}`, `Injection failed (tab busy): ${err.message}`);
+                    worker.zoneInjected = false; // Retry on next update
                 });
-            }, 500);
-        }, 5000);
+            }, 1000); // Reduced delay from 5000 to 1000
+        }, 1500);
     }
 });

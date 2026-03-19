@@ -90,7 +90,10 @@ export interface LeadFilter {
     hasEmail?: boolean;
     missingWebsite?: boolean;
     missingSocials?: boolean;
+    country?: string;
+    state?: string;
     city?: string;
+    tier?: string;
     isShortlisted?: boolean;
 }
 

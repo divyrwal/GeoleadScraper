@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import LeadFilters from "@/components/leads/LeadFilters";
+import type { LeadFilter } from "@geolead/types";
 
 // Dynamic import — Leaflet must be client-side only
 const MapContainer = dynamic(() => import("react-leaflet").then(m => m.MapContainer), { ssr: false });
@@ -34,16 +36,24 @@ interface MapLead {
 export default function MapPage() {
     const [leads, setLeads] = useState<MapLead[]>([]);
     const [loading, setLoading] = useState(true);
-    const [scoreFilter, setScoreFilter] = useState("all");
+    const [filters, setFilters] = useState<LeadFilter>({});
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => { setTimeout(() => setMounted(true), 0); }, []);
 
     useEffect(() => {
+        setLoading(true);
         const params: Record<string, string> = {};
-        if (scoreFilter !== "all") params.score = scoreFilter;
-        api.getMapLeads(params).then(r => { if (r.success) setLeads(r.data as unknown as MapLead[]); }).catch(console.error).finally(() => setLoading(false));
-    }, [scoreFilter]);
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== "") {
+                params[key] = String(value);
+            }
+        });
+        
+        api.getMapLeads(params).then(r => { 
+            if (r.success) setLeads(r.data as unknown as MapLead[]); 
+        }).catch(console.error).finally(() => setLoading(false));
+    }, [filters]);
 
     const center = useMemo(() => {
         const valid = leads.filter(l => typeof l.lat === "number" && typeof l.lng === "number" && !isNaN(l.lat) && !isNaN(l.lng));
@@ -64,28 +74,19 @@ export default function MapPage() {
 
     return (
         <div className="flex flex-col gap-4 animate-in fade-in duration-500 h-full">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Map View</h1>
                     <p className="text-muted-foreground">{counts.total} leads mapped</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="mt-3 pt-3 border-t text-xs text-muted-foreground flex justify-between items-center">
-                        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-orange-500/50 border border-orange-500 inline-block" /> Hot ({counts.hot})</span>
-                        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-yellow-500/50 border border-yellow-500 inline-block" /> Warm ({counts.warm})</span>
-                        <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-blue-500/50 border border-blue-500 inline-block" /> Cold ({counts.cold})</span>
-                    </div>
-                    <Select value={scoreFilter} onValueChange={setScoreFilter}>
-                        <SelectTrigger className="w-[140px]"><SelectValue placeholder="All Scores" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Scores</SelectItem>
-                            <SelectItem value="hot">Hot Only</SelectItem>
-                            <SelectItem value="warm">Warm Only</SelectItem>
-                            <SelectItem value="cold">Cold Only</SelectItem>
-                        </SelectContent>
-                    </Select>
+                <div className="flex items-center gap-4 bg-card border rounded-lg p-2.5 shadow-sm text-xs">
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> Hot ({counts.hot})</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-yellow-500" /> Warm ({counts.warm})</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Cold ({counts.cold})</span>
                 </div>
             </div>
+
+            <LeadFilters filters={filters} onFilterChange={setFilters} onExport={() => {}} />
 
             <Card className="flex-1 min-h-[500px] overflow-hidden">
                 <CardContent className="p-0 h-full">

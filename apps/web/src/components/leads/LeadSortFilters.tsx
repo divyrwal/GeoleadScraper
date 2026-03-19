@@ -9,10 +9,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Search, Phone, Globe, X } from "lucide-react";
+import { Search, Phone, Globe, X, MapPin } from "lucide-react";
 import type { LeadFilter } from "@geolead/types";
-import { useState, useEffect } from "react";
-import { LOCATIONS, PROFESSIONS } from "@/lib/constants/directory-data";
+import { useState, useEffect, useMemo } from "react";
+import { PROFESSIONS } from "@/lib/constants/directory-data";
+import { TIER_OPTIONS, getCityTier } from "@/lib/utils/location-utils";
 
 interface LeadSortFiltersProps {
     filters: LeadFilter;
@@ -21,27 +22,97 @@ interface LeadSortFiltersProps {
 
 export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFiltersProps) {
     // Local state for hierarchical selections
-    const [country, setCountry] = useState<string>("");
-    const [state, setState] = useState<string>("");
+    const [countryCode, setCountryCode] = useState<string>("");
+    const [stateCode, setStateCode] = useState<string>("");
     const [city, setCity] = useState<string>("");
+    const [tier, setTier] = useState<string>("");
 
     const [professionFamily, setProfessionFamily] = useState<string>("");
     const [professionNode, setProfessionNode] = useState<string>("");
     const [subProfession, setSubProfession] = useState<string>("");
 
-    // When location dropdowns change, we want to build a "city" search string
-    // e.g., if just city is selected: "Austin"
-    useEffect(() => {
-        let locationQuery = "";
-        if (city) locationQuery = city;
-        else if (state) locationQuery = state;
-        else if (country) locationQuery = country;
+    // Memoized base options or API-driven
+    const [countries, setCountries] = useState<any[]>([]);
+    const [states, setStates] = useState<any[]>([]);
+    const [cities, setCities] = useState<any[]>([]);
 
-        const newCity = locationQuery || undefined;
-        if (filters.city !== newCity) {
-            onFilterChange({ ...filters, city: newCity });
+    useEffect(() => {
+        const fetchCountries = async () => {
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries`);
+                const data = await res.json();
+                if (data.success) setCountries(data.data);
+            } catch (e) {
+                console.error("Failed to fetch countries", e);
+            }
+        };
+        fetchCountries();
+    }, []);
+
+    useEffect(() => {
+        if (!countryCode) {
+            setStates([]);
+            return;
         }
-    }, [country, state, city, filters, onFilterChange]);
+        const fetchStates = async () => {
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries/${countryCode}/states`);
+                const data = await res.json();
+                if (data.success) setStates(data.data);
+            } catch (e) {
+                console.error("Failed to fetch states", e);
+            }
+        };
+        fetchStates();
+    }, [countryCode]);
+
+    useEffect(() => {
+        if (!countryCode || !stateCode) {
+            setCities([]);
+            return;
+        }
+        const fetchCities = async () => {
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries/${countryCode}/states/${stateCode}/cities`);
+                const data = await res.json();
+                if (data.success) setCities(data.data);
+            } catch (e) {
+                console.error("Failed to fetch cities", e);
+            }
+        };
+        fetchCities();
+    }, [countryCode, stateCode]);
+
+    // When location dropdowns change, build the filter
+    useEffect(() => {
+        const countryName = countries.find(c => c.code === countryCode)?.name || "";
+        const stateName = states.find(s => s.code === stateCode)?.name || "";
+        
+        const newFilters = { ...filters };
+        
+        if (city) newFilters.city = city;
+        else if (stateName) newFilters.city = stateName; 
+        else if (countryName) newFilters.city = countryName;
+        else delete newFilters.city;
+
+        if (tier) newFilters.tier = tier;
+        else delete newFilters.tier;
+
+        if (stateName) newFilters.state = stateName; else delete newFilters.state;
+        if (countryName) newFilters.country = countryName; else delete newFilters.country;
+
+        const isChanged = 
+            filters.city !== newFilters.city || 
+            filters.tier !== newFilters.tier ||
+            filters.state !== newFilters.state ||
+            filters.country !== newFilters.country;
+
+        if (isChanged) {
+            onFilterChange(newFilters);
+        }
+    }, [countryCode, stateCode, city, tier, filters, onFilterChange, countries, states]);
+
+    // ... rest of the component remains similar ...
 
     // When profession dropdowns change, build a "category" search string
     useEffect(() => {
@@ -57,24 +128,20 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
     }, [professionFamily, professionNode, subProfession, filters, onFilterChange]);
 
     const hasActiveFilters =
-        filters.search || filters.category || filters.city || filters.hasPhone || filters.hasWebsite;
+        filters.search || filters.category || filters.city || filters.hasPhone || filters.hasWebsite || filters.tier;
 
     const clearFilters = () => {
-        setCountry("");
-        setState("");
+        setCountryCode("");
+        setStateCode("");
         setCity("");
+        setTier("");
         setProfessionFamily("");
         setProfessionNode("");
         setSubProfession("");
         onFilterChange({});
     };
 
-    const locs = LOCATIONS as Record<string, Record<string, string[]>>;
     const profs = PROFESSIONS as Record<string, Record<string, string[]>>;
-
-    const stateOptions = country && locs[country] ? Object.keys(locs[country]) : [];
-    const cityOptions = state && locs[country]?.[state] ? locs[country][state] : [];
-
     const nodeOptions = professionFamily && profs[professionFamily] ? Object.keys(profs[professionFamily]) : [];
     const subOptions = professionNode && profs[professionFamily]?.[professionNode] ? profs[professionFamily][professionNode] : [];
 
@@ -124,41 +191,58 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t">
                 {/* Location Filter hierarchy */}
                 <div className="flex flex-col gap-2">
-                    <h3 className="text-sm font-semibold text-muted-foreground">Location Filter</h3>
+                    <div className="flex items-center gap-2 mb-1">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <h3 className="text-sm font-semibold text-muted-foreground">Global Location Filter</h3>
+                    </div>
                     <div className="flex flex-wrap gap-2">
-                        <Select value={country} onValueChange={(v) => { setCountry(v); setState(""); setCity(""); }}>
-                            <SelectTrigger className="w-[140px]">
-                                <SelectValue placeholder="Country" />
+                        <Select value={countryCode} onValueChange={(v) => { setCountryCode(v); setStateCode(""); setCity(""); setTier(""); }}>
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Select Country" />
                             </SelectTrigger>
-                            <SelectContent>
-                                {Object.keys(LOCATIONS).map((c) => (
-                                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                            <SelectContent className="max-h-[300px]">
+                                {countries.map((c) => (
+                                    <SelectItem key={c.isoCode} value={c.isoCode}>{c.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
 
-                        <Select value={state} onValueChange={(v) => { setState(v); setCity(""); }} disabled={!country}>
-                            <SelectTrigger className="w-[140px]">
+                        <Select value={stateCode} onValueChange={(v) => { setStateCode(v); setCity(""); setTier(""); }} disabled={!countryCode}>
+                            <SelectTrigger className="w-[180px]">
                                 <SelectValue placeholder="State/Region" />
                             </SelectTrigger>
-                            <SelectContent>
-                                {stateOptions.map((s) => (
-                                    <SelectItem key={s as string} value={s as string}>{s as string}</SelectItem>
+                            <SelectContent className="max-h-[300px]">
+                                {states.map((s) => (
+                                    <SelectItem key={s.isoCode} value={s.isoCode}>{s.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
 
-                        <Select value={city} onValueChange={setCity} disabled={!state}>
-                            <SelectTrigger className="w-[140px]">
+                        <Select value={city} onValueChange={(v) => { setCity(v); setTier(""); }} disabled={!stateCode}>
+                            <SelectTrigger className="w-[180px]">
                                 <SelectValue placeholder="City" />
                             </SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                                {cities.map((c) => (
+                                    <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <Select value={tier} onValueChange={setTier}>
+                            <SelectTrigger className="w-[180px] border-primary/30 bg-primary/5">
+                                <SelectValue placeholder="City Tier" />
+                            </SelectTrigger>
                             <SelectContent>
-                                {cityOptions.map((c: string) => (
-                                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                                {TIER_OPTIONS.map((t) => (
+                                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
+                    <p className="text-[10px] text-muted-foreground mt-1 px-1 italic">
+                        * Tiers are currently optimized for India and major global hubs.
+                    </p>
                 </div>
 
                 {/* Profession / Category Filter hierarchy */}
