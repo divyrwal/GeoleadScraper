@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express, { Express } from "express";
 import cors from "cors";
 import { config } from "@geolead/config";
 import { healthRouter } from "./routes/health";
@@ -25,7 +25,7 @@ import { requireAuth } from "./middlewares/auth.middleware";
 import pinoHttp from "pino-http";
 import { logger } from "./lib/logger";
 
-const app = express();
+const app: Express = express();
 app.use(pinoHttp({ logger }));
 
 import helmet from "helmet";
@@ -41,7 +41,10 @@ const limiter = rateLimit({
 });
 app.use("/api", limiter);
 
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+    origin: config.api.corsOrigins,
+    credentials: true
+}));
 app.use(express.json({ limit: "10mb" }));
 
 // Mount routes
@@ -68,6 +71,11 @@ app.use("/api/leads", requireAuth, leadsRouter);          // /api/leads (GET, PO
 
 app.use(errorHandler);
 
-app.listen(config.api.port, () => {
-    logger.info(`[GeoLead API] Running on http://localhost:${config.api.port}`);
-});
+// For local development
+if (process.env.NODE_ENV !== "production") {
+    app.listen(config.api.port, () => {
+        logger.info(`[GeoLead API] Running on http://localhost:${config.api.port}`);
+    });
+}
+
+export default app;

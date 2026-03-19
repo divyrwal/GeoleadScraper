@@ -115,7 +115,7 @@ export class EnrichmentService {
                 // We add it to the BullMQ queue instead of awaiting synchronously.
                 await enrichmentQueue.add("enrichLead", { leadId: lead._id.toString(), url: lead.website_url });
             } catch (err: any) {
-                logger.error(`Failed to queue enrichment for item ${lead._id}:`, err);
+                logger.error({ err, leadId: lead._id }, "Failed to queue enrichment");
 
                 // Fallback for CRM running locally WITHOUT Redis
                 logger.warn("Queue failed (likely no Redis). Performing inline fallback.");

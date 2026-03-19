@@ -8,6 +8,14 @@
             "outputs": [
                 ".next/**",
                 "dist/**"
+            ],
+            "env": [
+                "MONGODB_URI",
+                "MONGODB_DB_NAME",
+                "CORS_ORIGINS",
+                "NODE_ENV",
+                "API_PORT",
+                "LOG_LEVEL"
             ]
         },
         "dev": {

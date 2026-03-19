@@ -110,7 +110,6 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }: LeadDetailM
         new Date(dateStr).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
     const scoreConfig = lead.lead_score ? SCORE_CONFIG[lead.lead_score as keyof typeof SCORE_CONFIG] : null;
-    const ScoreIcon = scoreConfig?.icon || CheckCircle;
 
     return (
         <>
@@ -207,7 +206,12 @@ export default function LeadDetailModal({ lead, onClose, onUpdate }: LeadDetailM
 
 // --- Memoized Sub-components for Performance ---
 
-const ScoreCard = memo(({ scoreConfig, lead }: any) => {
+interface ScoreCardProps {
+    scoreConfig: typeof SCORE_CONFIG.hot | null;
+    lead: Lead;
+}
+
+const ScoreCard = memo(({ scoreConfig, lead }: ScoreCardProps) => {
     if (!scoreConfig) return null;
     const ScoreIcon = scoreConfig.icon || CheckCircle;
     return (
@@ -233,7 +237,15 @@ const ScoreCard = memo(({ scoreConfig, lead }: any) => {
 });
 ScoreCard.displayName = "ScoreCard";
 
-const ContactInfoSection = memo(({ lead, enriching, handleEnrich, copyToClipboard, copied }: any) => (
+interface ContactInfoSectionProps {
+    lead: Lead;
+    enriching: boolean;
+    handleEnrich: () => void;
+    copyToClipboard: (text: string, label: string) => void;
+    copied: string | null;
+}
+
+const ContactInfoSection = memo(({ lead, enriching, handleEnrich, copyToClipboard, copied }: ContactInfoSectionProps) => (
     <div className="space-y-2">
         <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Contact</h3>
@@ -311,7 +323,11 @@ const ContactInfoSection = memo(({ lead, enriching, handleEnrich, copyToClipboar
 ));
 ContactInfoSection.displayName = "ContactInfoSection";
 
-const BusinessDetailsSection = memo(({ lead }: any) => {
+interface BusinessDetailsSectionProps {
+    lead: Lead;
+}
+
+const BusinessDetailsSection = memo(({ lead }: BusinessDetailsSectionProps) => {
     if (!lead.opening_hours && (!lead.service_options || lead.service_options.length === 0) && !lead.description && !lead.plus_code) return null;
     return (
         <div className="space-y-2">
@@ -338,7 +354,11 @@ const BusinessDetailsSection = memo(({ lead }: any) => {
 });
 BusinessDetailsSection.displayName = "BusinessDetailsSection";
 
-const AiAnalysisSection = memo(({ lead }: any) => {
+interface AiAnalysisSectionProps {
+    lead: Lead;
+}
+
+const AiAnalysisSection = memo(({ lead }: AiAnalysisSectionProps) => {
     if (!lead.ai_analysis) return null;
     return (
         <Card className="border-purple-200 bg-purple-50/50">
@@ -352,7 +372,17 @@ const AiAnalysisSection = memo(({ lead }: any) => {
 });
 AiAnalysisSection.displayName = "AiAnalysisSection";
 
-const WebAuditSection = memo(({ lead, auditing, generatingPitch, handleAudit, copyToClipboard, copied, formatDate }: any) => {
+interface WebAuditSectionProps {
+    lead: Lead;
+    auditing: boolean;
+    generatingPitch: boolean;
+    handleAudit: (ai: boolean) => void;
+    copyToClipboard: (text: string, label: string) => void;
+    copied: string | null;
+    formatDate: (d: string) => string;
+}
+
+const WebAuditSection = memo(({ lead, auditing, generatingPitch, handleAudit, copyToClipboard, copied, formatDate }: WebAuditSectionProps) => {
     if (!lead.website_url) return null;
     return (
         <Card className="border-indigo-200 bg-indigo-50/10 dark:bg-indigo-950/20 dark:border-indigo-900/50">
@@ -444,7 +474,17 @@ const WebAuditSection = memo(({ lead, auditing, generatingPitch, handleAudit, co
 });
 WebAuditSection.displayName = "WebAuditSection";
 
-const ContactHistorySection = memo(({ lead, contactHistory, contactNote, setContactNote, handleContact, contacting, formatDate }: any) => (
+interface ContactHistorySectionProps {
+    lead: Lead;
+    contactHistory: ContactLog[];
+    contactNote: string;
+    setContactNote: (n: string) => void;
+    handleContact: () => void;
+    contacting: boolean;
+    formatDate: (d: string) => string;
+}
+
+const ContactHistorySection = memo(({ lead, contactHistory, contactNote, setContactNote, handleContact, contacting, formatDate }: ContactHistorySectionProps) => (
     <Card>
         <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -462,7 +502,7 @@ const ContactHistorySection = memo(({ lead, contactHistory, contactNote, setCont
             </div>
             {contactHistory.length > 0 && (
                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                    {contactHistory.map((log: any) => (
+                    {contactHistory.map((log: ContactLog) => (
                         <div key={log.id} className="flex items-start gap-2 p-2.5 bg-muted/30 rounded-lg text-xs">
                             <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
                             <div className="flex-1">
