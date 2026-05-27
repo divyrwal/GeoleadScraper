@@ -19,15 +19,15 @@ import {
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
-    { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    { name: "Analytics", href: "/analytics", icon: BarChart3 },
-    { name: "Leads", href: "/leads", icon: Users },
-    { name: "Lead Sort", href: "/lead-sort", icon: ListFilter },
-    { name: "Shortlisted", href: "/shortlisted", icon: Star },
-    { name: "Pipeline", href: "/pipeline", icon: Columns3 },
-    { name: "Map View", href: "/map", icon: MapIcon },
-    { name: "Live Engine", href: "/live", icon: Terminal },
-    { name: "Duplicates", href: "/duplicates", icon: Copy },
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
+    { name: "Leads", href: "/dashboard/leads", icon: Users },
+    { name: "Lead Sort", href: "/dashboard/lead-sort", icon: ListFilter },
+    { name: "Shortlisted", href: "/dashboard/shortlisted", icon: Star },
+    { name: "Pipeline", href: "/dashboard/pipeline", icon: Columns3 },
+    { name: "Map View", href: "/dashboard/map", icon: MapIcon },
+    { name: "Live Engine", href: "/dashboard/live", icon: Terminal },
+    { name: "Duplicates", href: "/dashboard/duplicates", icon: Copy },
 ];
 
 export function Sidebar() {

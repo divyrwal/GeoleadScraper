@@ -36,7 +36,7 @@ export function AuthGuard({
           if (profile.status === "pending") {
             router.replace("/pending");
           } else {
-            router.replace("/");
+            router.replace("/dashboard");
           }
           return false;
         }
@@ -56,7 +56,7 @@ export function AuthGuard({
 
       if (requireAdmin) {
         if (profile?.role !== "admin") {
-          router.replace("/");
+          router.replace("/dashboard");
           return false;
         }
       }
@@ -70,7 +70,7 @@ export function AuthGuard({
 
       if (blockIfApproved) {
         if (profile?.status === "approved" || profile?.role === "admin") {
-          router.replace("/");
+          router.replace("/dashboard");
           return false;
         }
       }
