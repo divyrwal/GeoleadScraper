@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 import {
     LayoutDashboard,
     Map as MapIcon,
@@ -13,7 +14,9 @@ import {
     Terminal,
     ListFilter,
     Star,
+    LogOut,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const menuItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -29,6 +32,7 @@ const menuItems = [
 
 export function Sidebar() {
     const pathname = usePathname();
+    const { profile, logout } = useAuth();
 
     return (
         <aside className="fixed left-0 top-0 z-50 flex h-screen w-64 flex-col border-r bg-background/95 backdrop-blur-xl shadow-sm transition-transform duration-300 md:translate-x-0 border-border">
@@ -70,8 +74,17 @@ export function Sidebar() {
                 </nav>
             </div>
 
-            <div className="mt-auto px-6 py-4 border-t border-border/50 bg-background/50">
-                <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">GeoLead v7.0</p>
+            <div className="mt-auto px-4 py-4 border-t border-border/50 bg-background/50 flex flex-col gap-2">
+                {profile && (
+                    <div className="px-2 py-1 mb-2">
+                        <p className="text-sm font-medium text-foreground truncate">{profile.displayName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{profile.email}</p>
+                    </div>
+                )}
+                <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-foreground" onClick={logout}>
+                    <LogOut className="w-4 h-4 mr-3" />
+                    Logout
+                </Button>
             </div>
         </aside>
     );

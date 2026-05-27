@@ -13,6 +13,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "country-state-city": "^3.2.1",
+        "firebase": "^12.13.0",
         "leaflet": "latest",
         "lucide-react": "^0.575.0",
         "next": "16.1.6",

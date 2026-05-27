@@ -12,8 +12,22 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/context/AuthContext";
 
 export function Header() {
+    const { profile, logout } = useAuth();
+
+    // Generate initials from display name
+    const getInitials = (name: string) => {
+        if (!name) return "U";
+        return name
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .substring(0, 2)
+            .toUpperCase();
+    };
+
     return (
         <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b bg-background/75 px-6 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
             <div className="flex flex-1 items-center gap-4 md:gap-8">
@@ -38,9 +52,9 @@ export function Header() {
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="relative h-9 w-9 rounded-full ring-offset-background transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-border/50">
                             <Avatar className="h-9 w-9">
-                                <AvatarImage src="/avatars/user.png" alt="User" />
-                                <AvatarFallback className="bg-muted text-muted-foreground">
-                                    <User className="h-5 w-5" />
+                                {/* We don't have user photos yet, so fallback is preferred */}
+                                <AvatarFallback className="bg-gradient-to-br from-[#58a6ff] to-[#3fb950] text-white font-medium">
+                                    {getInitials(profile?.displayName || "User")}
                                 </AvatarFallback>
                             </Avatar>
                         </Button>
@@ -48,9 +62,11 @@ export function Header() {
                     <DropdownMenuContent className="w-56 border-border/50 shadow-2xl" align="end" forceMount>
                         <DropdownMenuLabel className="font-normal">
                             <div className="flex flex-col space-y-1">
-                                <p className="text-sm font-medium leading-none text-foreground">Admin User</p>
-                                <p className="text-xs leading-none text-muted-foreground">
-                                    admin@geolead.local
+                                <p className="text-sm font-medium leading-none text-foreground">
+                                    {profile?.displayName || "Loading..."}
+                                </p>
+                                <p className="text-xs leading-none text-muted-foreground truncate">
+                                    {profile?.email || ""}
                                 </p>
                             </div>
                         </DropdownMenuLabel>
@@ -64,7 +80,10 @@ export function Header() {
                             <span>Profile</span>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="bg-border/50" />
-                        <DropdownMenuItem className="focus:bg-destructive/10 focus:text-destructive cursor-pointer text-destructive">
+                        <DropdownMenuItem 
+                            className="focus:bg-destructive/10 focus:text-destructive cursor-pointer text-destructive"
+                            onClick={() => logout()}
+                        >
                             Log out
                         </DropdownMenuItem>
                     </DropdownMenuContent>
