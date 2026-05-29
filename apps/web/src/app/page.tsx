@@ -158,7 +158,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mt-6 text-base sm:text-lg text-[#8b949e] max-w-xl leading-relaxed font-normal">
-            Bypass Google Maps limits with advanced geographical grid-scanning. Extract local businesses, enrich with AI email lookups, and score conversion potential—all in one place.
+            Request target lists from your web dashboard. Our cloud engines scrape, clean, and AI-enrich high-quality local leads on demand. Scraper Chrome extension available exclusively on Enterprise plans.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
@@ -205,7 +205,7 @@ export default function LandingPage() {
                 <span className="w-3 h-3 rounded-full bg-[#3fb950]/80 block" />
               </div>
               <div className="bg-[#0d1117]/80 rounded-md border border-white/[0.05] text-[10px] text-[#8b949e] px-4 py-0.5 font-mono tracking-wide w-[200px] text-center select-none truncate">
-                GeoLead Extension v7.0
+                GeoLead Cloud Scraper v7.0
               </div>
               <Sparkles className="h-4 w-4 text-[#58a6ff]" />
             </div>
@@ -307,7 +307,7 @@ export default function LandingPage() {
                 <span>Extraction Live Feed</span>
                 <span className="text-[#3fb950] flex items-center gap-1 font-bold animate-pulse">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#3fb950]" />
-                  Active Scraper
+                  Active Cloud Node
                 </span>
               </div>
 
@@ -415,7 +415,7 @@ export default function LandingPage() {
             Three steps to qualified lead lists
           </h2>
           <p className="text-sm text-[#8b949e] max-w-md mx-auto mt-3">
-            Bypass local database limitations and scrape directly from active geographic targets.
+            Bypass feed limitations and extract targeted businesses on demand via our cloud servers.
           </p>
         </div>
 
@@ -426,9 +426,9 @@ export default function LandingPage() {
             <div className="h-11 w-11 rounded-xl bg-[#58a6ff]/10 border border-[#58a6ff]/20 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform duration-300">
               <Globe className="h-5.5 w-5.5 text-[#58a6ff]" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-3">Define Scan Grid</h3>
+            <h3 className="text-lg font-bold text-white mb-3">Request Lead Targets</h3>
             <p className="text-sm text-[#8b949e] leading-relaxed">
-              Target a city, district, or ZIP code. Our engine splits the area into a precise, overlapping grid to bypass search-feed limits and catch every listing.
+              Submit your target industry and location (e.g., dentist in Boston) via your cloud dashboard. Specify scan grid size, radius, and enrichment criteria.
             </p>
           </div>
 
@@ -438,9 +438,9 @@ export default function LandingPage() {
             <div className="h-11 w-11 rounded-xl bg-[#a371f7]/10 border border-[#a371f7]/20 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform duration-300">
               <Sparkles className="h-5.5 w-5.5 text-[#a371f7]" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-3">Dynamic Scraping & Deduplication</h3>
+            <h3 className="text-lg font-bold text-white mb-3">Automated Cloud Scraper Sweep</h3>
             <p className="text-sm text-[#8b949e] leading-relaxed">
-              Watch cards load dynamically in real-time. The scraper bypasses DOM virtualization, maps correct data fields, and automatically blocks duplicate entries.
+              Our cluster of headless cloud scrapers handles proxy rotation and virtual DOM scroll bypasses to exhaustively extract every listing without local CPU usage.
             </p>
           </div>
 
@@ -450,9 +450,9 @@ export default function LandingPage() {
             <div className="h-11 w-11 rounded-xl bg-[#06b6d4]/10 border border-[#06b6d4]/20 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform duration-300">
               <BarChart3 className="h-5.5 w-5.5 text-[#06b6d4]" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-3">AI Scoring & CRM Sync</h3>
+            <h3 className="text-lg font-bold text-white mb-3">AI Validation & Download</h3>
             <p className="text-sm text-[#8b949e] leading-relaxed">
-              Enrich profiles with websites, socials, and contact detail lookups. Leads are scored by local AI models and synced directly to your MongoDB dashboard.
+              Profiles are enriched with website emails and socials, scored by local AI models for deal warmth, and delivered directly to your web CRM for export.
             </p>
           </div>
         </div>
@@ -485,10 +485,10 @@ export default function LandingPage() {
               >
                 <div className="flex items-center gap-3">
                   <Globe className="h-4.5 w-4.5 text-[#58a6ff]" />
-                  <span className="text-sm font-bold text-white">Advanced Grid-Scraping Engine</span>
+                  <span className="text-sm font-bold text-white">On-Demand Cloud Scraper</span>
                 </div>
                 <p className="text-xs text-[#8b949e] mt-2 leading-relaxed">
-                  Bypass standard Google Maps 120-listing cutoff. Slice geographical borders into grids to discover 100% of local shops.
+                  No code, no extension downloads. Request any local niche and our cloud containers will handle proxy rotation, bypass maps limits, and deliver structured data.
                 </p>
               </button>
 
@@ -502,10 +502,10 @@ export default function LandingPage() {
               >
                 <div className="flex items-center gap-3">
                   <Database className="h-4.5 w-4.5 text-[#a371f7]" />
-                  <span className="text-sm font-bold text-white">Central CRM Pipeline Dashboard</span>
+                  <span className="text-sm font-bold text-white">Central CRM & Request Hub</span>
                 </div>
                 <p className="text-xs text-[#8b949e] mt-2 leading-relaxed">
-                  Consolidate leads instantly from extension sweeps. Tag, filter, shortlist, and export to clean CSV files in one click.
+                  Submit requests and manage campaign queues directly from your central web dashboard. Clean, tag, segment, and export leads in a single click.
                 </p>
               </button>
 
@@ -519,10 +519,10 @@ export default function LandingPage() {
               >
                 <div className="flex items-center gap-3">
                   <Brain className="h-4.5 w-4.5 text-[#06b6d4]" />
-                  <span className="text-sm font-bold text-white">AI Enrichment & Local Lead Scoring</span>
+                  <span className="text-sm font-bold text-white">AI Contact Enrichment & Scoring</span>
                 </div>
                 <p className="text-xs text-[#8b949e] mt-2 leading-relaxed">
-                  Run websites through an AI validation pipeline to extract emails, social profiles, and rank leads using a custom quality score.
+                  Automatically pull verified emails, Instagram, and LinkedIn handles. Our AI models rank prospects by conversion probability to optimize outreach success.
                 </p>
               </button>
             </div>
@@ -543,7 +543,7 @@ export default function LandingPage() {
                 <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
                   <span className="text-xs font-bold text-white flex items-center gap-2">
                     <span className="h-2 w-2 bg-[#3fb950] rounded-full animate-ping" />
-                    GeoLead Extension Panel
+                    GeoLead Cloud Scraper Node #3
                   </span>
                   <span className="text-[10px] font-mono text-[#8b949e]">Running Zone 3/9</span>
                 </div>
@@ -561,7 +561,7 @@ export default function LandingPage() {
 
                 <div className="bg-[#161b22] border border-[#3fb950]/20 rounded-xl p-3 text-center text-xs">
                   <span className="text-[#8b949e] block">Live Status</span>
-                  <span className="font-bold text-[#3fb950] block mt-1">✓ Virtual Scroll Bypass Engaged</span>
+                  <span className="font-bold text-[#3fb950] block mt-1">✓ Cloud Proxy Rotation Engaged</span>
                 </div>
               </div>
             )}
@@ -719,7 +719,7 @@ export default function LandingPage() {
           {/* Plan 1: Basic */}
           <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl flex flex-col relative overflow-hidden group hover:border-[#58a6ff]/20 transition-all duration-300">
             <h3 className="text-lg font-bold text-white mb-1">Basic Plan</h3>
-            <p className="text-xs text-[#8b949e] mb-6">Best for targeted lists & quick outreach</p>
+            <p className="text-xs text-[#8b949e] mb-6">Direct lead requests via dashboard (500/mo)</p>
             
             <div className="flex items-baseline gap-1 mb-8">
               <span className="text-4xl font-extrabold text-white">$10</span>
@@ -733,15 +733,15 @@ export default function LandingPage() {
               </li>
               <li className="flex items-center gap-2.5">
                 <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Adaptive Grid Scanning (3x3 grid)
+                Dashboard Lead Request Form
               </li>
               <li className="flex items-center gap-2.5">
                 <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Basic CSV Exporting
+                Standard Processing Queue
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Real-time Place ID Deduplication
+              <li className="flex items-center gap-2.5 text-red-400">
+                <span className="h-4.5 w-4.5 flex items-center justify-center font-bold text-red-500 mr-0.5 shrink-0">×</span>
+                <span>Chrome Scraper Extension</span>
               </li>
             </ul>
 
@@ -752,14 +752,14 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          {/* Plan 2: Professional (AI-Based) */}
+          {/* Plan 2: Growth (Optimized Quality) */}
           <div className="p-8 bg-[#0c1117] border border-[#58a6ff]/40 rounded-2xl flex flex-col relative overflow-hidden shadow-2xl shadow-[#58a6ff]/5">
             <div className="absolute top-0 right-0 bg-[#58a6ff] text-[#030712] font-mono font-bold text-[9px] uppercase tracking-wider px-3 py-1 rounded-bl-lg">
               Optimized Quality
             </div>
             
             <h3 className="text-lg font-bold text-white mb-1">Growth Plan</h3>
-            <p className="text-xs text-[#8b949e] mb-6">Best for sales growth & dynamic campaigns</p>
+            <p className="text-xs text-[#8b949e] mb-6">AI-enriched leads requested via dashboard (5000/mo)</p>
             
             <div className="flex items-baseline gap-1 mb-8">
               <span className="text-4xl font-extrabold text-white">$100</span>
@@ -781,11 +781,15 @@ export default function LandingPage() {
               </li>
               <li className="flex items-center gap-2.5">
                 <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Full Website Email & Social Enrichment
+                Website Email & Social Enrichment
               </li>
               <li className="flex items-center gap-2.5">
                 <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Deep Scan Grids (up to 5x5 grid)
+                Priority Processing Queue
+              </li>
+              <li className="flex items-center gap-2.5 text-red-400">
+                <span className="h-4.5 w-4.5 flex items-center justify-center font-bold text-red-500 mr-0.5 shrink-0">×</span>
+                <span>Chrome Scraper Extension</span>
               </li>
             </ul>
 
@@ -799,7 +803,7 @@ export default function LandingPage() {
           {/* Plan 3: Custom Enterprise */}
           <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl flex flex-col relative overflow-hidden group hover:border-[#a371f7]/20 transition-all duration-300">
             <h3 className="text-lg font-bold text-white mb-1">Enterprise Leads</h3>
-            <p className="text-xs text-[#8b949e] mb-6">Best for custom parameters at scale</p>
+            <p className="text-xs text-[#8b949e] mb-6">Custom cloud data feeds + Direct Scraper Extension</p>
             
             <div className="flex items-baseline gap-1 mb-8">
               <span className="text-4xl font-extrabold text-white">Custom</span>
@@ -807,13 +811,17 @@ export default function LandingPage() {
             </div>
 
             <ul className="space-y-4 text-sm text-[#8b949e] mb-8 flex-grow">
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                <span className="text-white font-semibold">Custom Leads & Parameters</span>
+              <li className="flex items-center gap-2.5 font-bold text-[#a371f7]">
+                <Check className="h-4.5 w-4.5 text-[#a371f7] shrink-0 animate-pulse" />
+                <span>Includes Chrome Scraper Extension</span>
               </li>
               <li className="flex items-center gap-2.5">
                 <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Dedicated Scraping Infrastructure
+                Infinite Direct Extension Scans
+              </li>
+              <li className="flex items-center gap-2.5">
+                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
+                Dedicated Scraper Proxy Nodes
               </li>
               <li className="flex items-center gap-2.5">
                 <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
@@ -845,7 +853,7 @@ export default function LandingPage() {
           Ready to supercharge your local outreach?
         </h2>
         <p className="text-[#8b949e] text-base mb-10 max-w-md mx-auto leading-relaxed">
-          Create a free account, load your Chrome extension, and run your first geographical search in less than two minutes.
+          Create a free account, request your target lead sector on your dashboard, and download enriched data in less than two minutes.
         </p>
         
         <Link href={user ? "/dashboard" : "/signup"}>

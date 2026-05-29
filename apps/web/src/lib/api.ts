@@ -110,4 +110,18 @@ export const api = {
     // Web Audit
     auditLeadWebsite: (id: string, includeAi: boolean = false) =>
         request<{ success: boolean; data: import("@geolead/types").Lead }>(`/api/leads/${id}/audit${includeAi ? '?includeAi=true' : ''}`, { method: "POST" }),
+
+    // Advanced Search & Request Data
+    startAdvancedSearch: (params: {
+        query: string;
+        location: string;
+        radiusKm?: number;
+        maxResults?: number;
+        sources?: { googleMaps: boolean; justDial: boolean; linkedIn: boolean; instagram: boolean };
+        useAiValidation?: boolean;
+        deepScan?: boolean;
+    }) => request<{ success: boolean; jobId: string; message: string }>("/api/search/advanced", {
+        method: "POST",
+        body: JSON.stringify(params)
+    }),
 };

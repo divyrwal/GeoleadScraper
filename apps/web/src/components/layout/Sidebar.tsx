@@ -15,11 +15,13 @@ import {
     ListFilter,
     Star,
     LogOut,
+    Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Request Data", href: "/dashboard/request", icon: Sparkles },
     { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
     { name: "Leads", href: "/dashboard/leads", icon: Users },
     { name: "Lead Sort", href: "/dashboard/lead-sort", icon: ListFilter },
