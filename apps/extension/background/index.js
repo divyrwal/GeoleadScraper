@@ -31,7 +31,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         }
         
-        if (message._fromBg) {
+        // Only relay progress messages to sidebar — NOT extraction_done from content scripts.
+        // The CampaignManager's finishCampaign() sends its own extraction_done when ALL zones are done.
+        if (message._fromBg && message.type === 'progress') {
             chrome.runtime.sendMessage(message).catch(() => { });
         }
         return false;
@@ -75,6 +77,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const leads = message.full ? scanner.bufferedLeads : scanner.bufferedLeads.slice(-20);
         sendResponse({ success: true, leads, total: scanner.bufferedLeads.length });
         return false;
+    }
+
+    if (message.action === 'manual_flush') {
+        (async () => {
+            try {
+                if (scanner.bufferedLeads.length === 0) {
+                    sendResponse({ success: false, error: 'Buffer is empty' });
+                    return;
+                }
+                const batchSize = 100;
+                for (let i = 0; i < scanner.bufferedLeads.length; i += batchSize) {
+                    await scanner.saveToApi(scanner.bufferedLeads.slice(i, i + batchSize), "Manual Upload");
+                }
+                const count = scanner.bufferedLeads.length;
+                scanner.bufferedLeads = [];
+                sendResponse({ success: true, uploaded: count });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true; // Keep message channel open for async sendResponse
+    }
+
+    if (message.action === 'get_debug_log') {
+        chrome.storage.local.get(['_debugLog'], (result) => {
+            sendResponse({ log: result._debugLog || [] });
+        });
+        return true; // Keep message channel open for async sendResponse
+    }
+
+    if (message.action === 'clear_debug_log') {
+        chrome.storage.local.remove('_debugLog', () => {
+            sendResponse({ cleared: true });
+        });
+        return true; // Keep message channel open for async sendResponse
     }
 
     return false;

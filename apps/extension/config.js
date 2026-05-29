@@ -5,8 +5,8 @@
  */
 
 export const config = {
-    // The production API endpoint on Vercel
-    apiUrl: 'https://geolead-scraper-api.vercel.app',
+    // The local API endpoint (change to Vercel URL for production)
+    apiUrl: 'http://localhost:4000',
 
     // The local production dashboard URL
     dashboardUrl: 'http://localhost:3000/leads',

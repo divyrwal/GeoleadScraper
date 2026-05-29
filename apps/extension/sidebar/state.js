@@ -4,6 +4,7 @@
  * v7.0 — Simplified: no tabs, no autopilot, always grid scan mode.
  */
 
+import { config } from '../config.js';
 export class AppState {
     constructor(uiManager, terminal) {
         this.ui = uiManager;
@@ -22,7 +23,16 @@ export class AppState {
         await this.checkActiveTab();
 
         chrome.storage.local.get(['apiUrl', 'browserQuery', 'browserLocation', 'browserGridSize', 'browserSaveMode'], (result) => {
-            if (result.apiUrl) this.ui.apiUrlInput.value = result.apiUrl;
+            // Migrate stale API URL: if stored URL is the old Vercel URL or empty, use config default
+            const storedUrl = result.apiUrl || '';
+            if (!storedUrl || storedUrl.includes('geolead-scraper-api.vercel.app')) {
+                // Write the correct config URL to storage so background worker picks it up
+                chrome.storage.local.set({ apiUrl: config.apiUrl });
+                this.ui.apiUrlInput.value = config.apiUrl;
+            } else {
+                this.ui.apiUrlInput.value = storedUrl;
+            }
+
             if (result.browserQuery) this.ui.browserQuery.value = result.browserQuery;
             if (result.browserLocation) this.ui.browserLocation.value = result.browserLocation;
             if (result.browserSaveMode !== undefined) this.ui.browserSaveMode.checked = result.browserSaveMode;

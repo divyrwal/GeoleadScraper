@@ -42,7 +42,15 @@ const limiter = rateLimit({
 app.use("/api", limiter);
 
 app.use(cors({
-    origin: config.api.corsOrigins,
+    origin: (origin, callback) => {
+        // Allow requests with no origin (e.g., server-to-server, curl)
+        if (!origin) return callback(null, true);
+        // Allow chrome extension origins
+        if (origin.startsWith("chrome-extension://")) return callback(null, true);
+        // Allow configured origins
+        if (config.api.corsOrigins.includes(origin)) return callback(null, true);
+        callback(null, false);
+    },
     credentials: true
 }));
 app.use(express.json({ limit: "10mb" }));

@@ -156,12 +156,13 @@ export class ScraperController {
             return;
         }
 
-        leads.reverse().forEach(lead => {
+        const displayLeads = [...leads];
+        displayLeads.reverse().forEach(lead => {
             const div = document.createElement('div');
             div.className = 'buffer-item';
             div.innerHTML = `
-                <span class="buffer-item-name">${lead.name || 'Unknown'}</span>
-                <span class="buffer-item-loc">${lead.city || ''} ${lead.phone ? ` • ${lead.phone}` : ''}</span>
+                <span class="buffer-item-name">${lead.business_name || 'Unknown'}</span>
+                <span class="buffer-item-loc">${lead.address || ''} ${lead.phone_number ? ` • ${lead.phone_number}` : ''}</span>
             `;
             this.ui.bufferItems.appendChild(div);
         });
@@ -263,6 +264,8 @@ export class ScraperController {
             // Stats sync
             if (message.found !== undefined) this.ui.foundCount.textContent = message.found;
             if (message.scraped !== undefined) this.ui.scrapedCount.textContent = message.scraped;
+            if (message.saved !== undefined) this.ui.savedCount.textContent = message.saved;
+            if (message.dupes !== undefined) this.ui.dupCount.textContent = message.dupes;
             
             this.ui.progressMessage.textContent = message.message || "";
 
@@ -272,6 +275,18 @@ export class ScraperController {
                 this.term.add(prefix + message.message, message.status === 'error' ? 'error' : 'info');
             }
 
+            // Zone-level progress display
+            if (message.zoneIndex !== undefined && message.totalZones !== undefined) {
+                this.ui.progressZone.textContent = `Zone ${message.zoneIndex} / ${message.totalZones}`;
+                
+                // In single mode, zone progress updates the main progress bar
+                if (!message.campaignTotal || message.campaignTotal <= 0) {
+                    const pct = Math.max(0, Math.min(100, Math.round(((message.zoneIndex - 1) / message.totalZones) * 100)));
+                    this.ui.progressBar.style.width = `${pct}%`;
+                    this.ui.progressPercent.textContent = `${pct}%`;
+                }
+            }
+
             if (message.campaignTotal > 0) {
                 // Bulk mode progress: based on queries completed
                 const completed = message.campaignTotal - message.campaignQueue - 1; 
@@ -279,11 +294,13 @@ export class ScraperController {
                 this.ui.progressBar.style.width = `${pct}%`;
                 this.ui.progressPercent.textContent = `${pct}%`;
                 
-                // Show aggregate found count
+                // Show aggregate campaign stats
                 this.ui.foundCount.textContent = message.campaignFound || 0;
                 this.ui.scrapedCount.textContent = message.campaignFound || 0;
+                if (message.campaignSaved !== undefined) this.ui.savedCount.textContent = message.campaignSaved;
+                if (message.campaignDupes !== undefined) this.ui.dupCount.textContent = message.campaignDupes;
             } else if (message.processed && message.found) {
-                // Single mode progress
+                // Fallback / card progress (non-zone)
                 const pct = Math.round((message.processed / message.found) * 100);
                 this.ui.progressBar.style.width = `${pct}%`;
                 this.ui.progressPercent.textContent = `${pct}%`;
@@ -302,6 +319,8 @@ export class ScraperController {
             this.ui.activeMode === 'bulk' ? "Start Bulk Campaign" : "Start Grid Scan";
         this.ui.stopBtn.classList.add('hidden');
         this.ui.progressMessage.textContent = '✅ Mission Complete';
+        this.ui.progressBar.style.width = `100%`;
+        this.ui.progressPercent.textContent = `100%`;
         this.term.add(`✅ Complete: ${scraped} leads gathered.`, 'success');
     }
 }

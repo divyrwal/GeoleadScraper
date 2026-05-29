@@ -32,20 +32,20 @@ export const getLeadsQuerySchema = z.object({
 });
 
 export const createLeadsBodySchema = z.object({
-    search_query: z.string().optional(),
+    search_query: z.string().optional().nullable(),
     leads: z.array(z.object({
         business_name: z.string(),
-        google_place_id: z.string().optional(),
-        address: z.string().optional(),
-        phone_number: z.string().optional(),
-        website_url: z.string().url().optional().or(z.literal("")),
-        google_rating: z.number().optional(),
-        review_count: z.number().optional(),
-        category: z.string().optional(),
-        location_lat: z.number().optional(),
-        location_long: z.number().optional(),
+        google_place_id: z.string().optional().nullable(),
+        address: z.string().optional().nullable(),
+        phone_number: z.string().optional().nullable(),
+        website_url: z.string().optional().nullable().or(z.literal("")),
+        google_rating: z.number().optional().nullable(),
+        review_count: z.number().optional().nullable(),
+        category: z.string().optional().nullable(),
+        location_lat: z.number().optional().nullable(),
+        location_long: z.number().optional().nullable(),
     }).passthrough())
-}).strict();
+});
 
 export const bulkUpdateStatusSchema = z.object({
     ids: z.array(objectIdSchema),

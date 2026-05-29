@@ -81,7 +81,10 @@ export class GridWorker {
 
         this.onProgress(this.id, {
             status: "navigating",
-            message: `[Zone ${zoneIndex}/${this.totalZones}] 📍 Worker ${this.id} -> ${zone.label}`
+            message: `[Zone ${zoneIndex}/${this.totalZones}] 📍 Worker ${this.id} -> ${zone.label}`,
+            zoneIndex,
+            totalZones: this.totalZones,
+            zoneLabel: zone.label
         });
 
         const query = this.currentLocation
@@ -130,7 +133,10 @@ export class GridWorker {
 
     handleLeadsBatch(leads) {
         this.lastActivityTime = Date.now();
-        this.onLeads(this.id, leads, this.currentQuery);
+        // Must handle the async result to avoid silently losing leads
+        Promise.resolve(this.onLeads(this.id, leads, this.currentQuery)).catch(err => {
+            console.error(`[Worker ${this.id}] Lead handling error:`, err);
+        });
     }
 
     handleZoneDone(message) {
@@ -169,10 +175,24 @@ export class CampaignManager {
 
     initStorage() {
         chrome.storage.local.get(['apiUrl'], (result) => {
-            if (result.apiUrl) this.apiUrl = result.apiUrl;
+            const stored = (result.apiUrl || '').trim();
+            // Reject stale Vercel URL — use config default instead
+            if (stored && !stored.includes('geolead-scraper-api.vercel.app')) {
+                this.apiUrl = stored;
+            } else if (stored) {
+                // Auto-migrate: overwrite stale URL in storage
+                chrome.storage.local.set({ apiUrl: config.apiUrl });
+            }
+            logger.log('INFO', 'CAMPAIGN', `API URL: ${this.apiUrl}`);
         });
         chrome.storage.onChanged.addListener((changes) => {
-            if (changes.apiUrl) this.apiUrl = changes.apiUrl.newValue;
+            if (changes.apiUrl && changes.apiUrl.newValue) {
+                const newUrl = changes.apiUrl.newValue.trim();
+                if (newUrl && !newUrl.includes('geolead-scraper-api.vercel.app')) {
+                    this.apiUrl = newUrl;
+                    logger.log('INFO', 'CAMPAIGN', `API URL updated: ${this.apiUrl}`);
+                }
+            }
         });
     }
 
@@ -228,11 +248,14 @@ export class CampaignManager {
     }
 
     relayProgress(workerId, msg) {
+        msg.type = 'progress'; // Required for sidebar handleMessage to process it
         msg._fromBg = true;
         msg.workerId = workerId;
 
         // Inject global campaign stats
         msg.campaignFound = this.totalLeads;
+        msg.campaignSaved = this.totalSaved;
+        msg.campaignDupes = this.totalDupes;
         msg.campaignQueue = this.queue.length;
         msg.campaignTotal = this.queue.length + this.workers.size;
 
@@ -269,8 +292,24 @@ export class CampaignManager {
                 body: JSON.stringify({ leads, search_query: query })
             });
             const result = await res.json();
+            if (!res.ok) {
+                const detailsStr = (result.error === "Validation failed" && result.details && Array.isArray(result.details))
+                    ? `: ${result.details.map(d => `${d.path.join('.')}: ${d.message}`).join(', ')}`
+                    : '';
+                throw new Error((result.error || `HTTP ${res.status}`) + detailsStr);
+            }
             this.totalSaved += (result.inserted || 0);
             this.totalDupes += (result.updated || 0) + (result.skipped || 0);
+
+            // Relay save stats to sidebar
+            chrome.runtime.sendMessage({
+                type: "progress",
+                _fromBg: true,
+                status: "saving",
+                saved: this.totalSaved,
+                dupes: this.totalDupes,
+                message: `💾 Saved ${result.inserted || 0} new, ${result.updated || 0} updated, ${result.skipped || 0} skipped`
+            }).catch(() => { });
         } catch (err) {
             logger.log('ERROR', 'CAMPAIGN', `Save failed: ${err.message}`);
             chrome.runtime.sendMessage({

@@ -110,13 +110,14 @@ window.GeoLeadScraper = {
                 message: `🎯 Extracting intel from ${totalCards} targets...`
             });
 
-            // PHASE 2: Sequential extraction
-            GeoLeadUtils.contentLog('INFO', `[PHASE2] Starting extraction of ${totalCards} targets`);
+            // PHASE 2: Sliding-Window Sequential extraction
+            GeoLeadUtils.contentLog('INFO', `[PHASE2] Starting sliding-window extraction of ${totalCards} targets`);
 
-            let cardIndex = 0;
+            let processedCount = 0;
+            let scrollStaleCount = 0;
             let lastProgressTime = Date.now();
 
-            while (cardIndex < totalCards && !this.shouldStop) {
+            while (processedCount < totalCards && !this.shouldStop) {
                 // Circuit breaker — only for feed-level failures
                 if (consecutiveFailures >= 8) {
                     GeoLeadUtils.contentLog('ERROR', `[CIRCUIT_BREAK] ${consecutiveFailures} consecutive feed-level failures`);
@@ -128,33 +129,86 @@ window.GeoLeadScraper = {
                     GeoLeadUtils.sendMsg({
                         type: "progress", status: "extracting",
                         found: totalCards, scraped: allLeads.length,
-                        processed: cardIndex,
-                        message: `🔍 Processing ${cardIndex + 1}/${totalCards}...`
+                        processed: processedCount,
+                        message: `🔍 Processing ${processedCount + 1}/${totalCards}...`
                     });
                     lastProgressTime = Date.now();
                 }
 
-                try {
-                    const result = await this._processCard(
-                        cardIndex, totalCards, processedNames, processedPlaceIds,
-                        searchQuery, allLeads, pendingBatch, BATCH_SIZE, skipCount
-                    );
-
-                    if (result.feedLost || result.reachedEnd) break;
-                    if (result.extracted || result.partial) {
-                        consecutiveFailures = 0;
-                        lastProgressTime = Date.now();
-                    }
-                    if (result.skipped) skipCount++;
-
-                } catch (err) {
-                    GeoLeadUtils.contentLog('ERROR', `[CARD:ERROR] Card ${cardIndex}: ${err.message}`);
-                    consecutiveFailures++;
-                    await GeoLeadNavigator.goBackToFeed();
-                    await GeoLeadUtils.sleep(1000);
+                const liveFeed = GeoLeadDOM.getFreshFeed();
+                if (!liveFeed) {
+                    GeoLeadUtils.contentLog('WARN', '[FEED:LOST] Feed container not found.');
+                    break;
                 }
 
-                cardIndex++;
+                const cards = Array.from(liveFeed.querySelectorAll(SELECTORS.feed.article[0]));
+                
+                // Find the first card in the DOM that hasn't been processed yet
+                let targetCard = null;
+                for (let i = 0; i < cards.length; i++) {
+                    const card = cards[i];
+                    const basics = GeoLeadExtractors.extractCardBasics(card);
+                    if (basics) {
+                        const nameKey = GeoLeadUtils.fingerprint(basics.business_name);
+                        if (!processedNames.has(nameKey)) {
+                            targetCard = card;
+                            break;
+                        }
+                    }
+                }
+
+                if (targetCard) {
+                    scrollStaleCount = 0;
+                    
+                    // Scroll target card into view centered
+                    targetCard.scrollIntoView({ behavior: 'instant', block: 'center' });
+                    await GeoLeadUtils.sleep(150);
+
+                    try {
+                        const result = await this._processCardElement(
+                            targetCard, processedCount, totalCards, processedNames, processedPlaceIds,
+                            searchQuery, allLeads, pendingBatch, BATCH_SIZE, skipCount
+                        );
+
+                        if (result.feedLost) break;
+                        if (result.extracted || result.partial) {
+                            consecutiveFailures = 0;
+                            lastProgressTime = Date.now();
+                        }
+                        if (result.skipped) skipCount++;
+                        
+                        processedCount++;
+                    } catch (err) {
+                        GeoLeadUtils.contentLog('ERROR', `[CARD:ERROR] Process failed at element: ${err.message}`);
+                        consecutiveFailures++;
+                        await GeoLeadNavigator.goBackToFeed();
+                        await GeoLeadUtils.sleep(1000);
+                        processedCount++; // Increment to prevent stuck loop
+                    }
+                } else {
+                    // All visible cards are already processed. Scroll feed down to load next sliding window
+                    GeoLeadUtils.contentLog('INFO', '[PHASE2] All visible cards processed. Scrolling down feed...');
+                    
+                    if (cards.length > 0) {
+                        cards[cards.length - 1].scrollIntoView({ behavior: 'instant', block: 'end' });
+                    }
+                    liveFeed.scrollTop = liveFeed.scrollHeight;
+                    
+                    await GeoLeadUtils.sleep(800);
+                    
+                    // Verify if scrolling loaded new cards
+                    const newFeed = GeoLeadDOM.getFreshFeed();
+                    const newCards = newFeed ? newFeed.querySelectorAll(SELECTORS.feed.article[0]) : [];
+                    if (newCards.length === cards.length) {
+                        scrollStaleCount++;
+                        if (scrollStaleCount >= 6 || GeoLeadDOM.isEndOfList(newFeed)) {
+                            GeoLeadUtils.contentLog('INFO', '[PHASE2] End of list reached. No more cards loaded.');
+                            break;
+                        }
+                    } else {
+                        scrollStaleCount = 0;
+                    }
+                }
             }
 
             // Flush remaining batch
@@ -196,21 +250,7 @@ window.GeoLeadScraper = {
      * Process a single card: load, extract basics, dedup, click in, extract detail, go back.
      * Returns an object indicating what happened.
      */
-    _processCard: async function (cardIndex, totalCards, processedNames, processedPlaceIds, searchQuery, allLeads, pendingBatch, BATCH_SIZE, skipCount) {
-        // Ensure card is loaded
-        const { feed: liveFeed, cards } = await GeoLeadScroller.ensureCardLoaded(cardIndex);
-
-        if (!liveFeed) {
-            GeoLeadUtils.contentLog('WARN', `[FEED:LOST] Feed lost at card ${cardIndex}`);
-            return { feedLost: true };
-        }
-
-        if (cardIndex >= cards.length) {
-            GeoLeadUtils.contentLog('INFO', `[END] Reached end at card ${cardIndex} (${cards.length} rendered)`);
-            return { reachedEnd: true };
-        }
-
-        const card = cards[cardIndex];
+    _processCardElement: async function (card, processedCount, totalCards, processedNames, processedPlaceIds, searchQuery, allLeads, pendingBatch, BATCH_SIZE, skipCount) {
         if (!card) return { skipped: false };
 
         // Extract card basics
@@ -264,7 +304,7 @@ window.GeoLeadScraper = {
             GeoLeadUtils.sendMsg({
                 type: "progress", status: "extracting",
                 found: totalCards, scraped: allLeads.length,
-                processed: cardIndex + 1,
+                processed: processedCount + 1,
                 message: `[${allLeads.length}] ~ ${basics.business_name} (partial)`
             });
 
@@ -311,7 +351,7 @@ window.GeoLeadScraper = {
         GeoLeadUtils.sendMsg({
             type: "progress", status: "extracting",
             found: totalCards, scraped: allLeads.length,
-            processed: cardIndex + 1,
+            processed: processedCount + 1,
             message: `[${allLeads.length}] ✓ ${lead.business_name} ${statusIcon}`
         });
 
@@ -329,7 +369,7 @@ window.GeoLeadScraper = {
         // Navigate back to feed
         const { success: backOk } = await GeoLeadNavigator.goBackToFeed();
         if (!backOk) {
-            GeoLeadUtils.contentLog('WARN', `[NAV:FAIL] Failed to return to feed at index ${cardIndex}`);
+            GeoLeadUtils.contentLog('WARN', `[NAV:FAIL] Failed to return to feed at processed index ${processedCount}`);
             await GeoLeadUtils.sleep(2000);
             const recoveredFeed = GeoLeadDOM.getFreshFeed();
             if (!recoveredFeed || recoveredFeed.querySelectorAll(SELECTORS.feed.article[0]).length === 0) {

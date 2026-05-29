@@ -47,7 +47,21 @@ export async function geocodeLocation(location: string, jobId: string): Promise<
         const data = await response.json();
 
         if (!data || data.length === 0) {
-            broadcastLog(jobId, 'warn', `[GridEngine] Could not find geographic coordinates for "${location}". Falling back to basic search.`);
+            // Fallback 1: If there is a comma, try geocoding everything after the first comma
+            if (location.includes(',')) {
+                const parentLocation = location.split(',').slice(1).join(',').trim();
+                broadcastLog(jobId, 'info', `[GridEngine] Geocoding failed. Retrying with parent: "${parentLocation}"...`);
+                return geocodeLocation(parentLocation, jobId);
+            }
+            // Fallback 2: If there's no comma but there are multiple words, try geocoding by dropping the first word
+            const words = location.trim().split(/\s+/);
+            if (words.length > 1) {
+                const parentLocation = words.slice(1).join(' ').trim();
+                broadcastLog(jobId, 'info', `[GridEngine] Geocoding failed. Retrying with parent words: "${parentLocation}"...`);
+                return geocodeLocation(parentLocation, jobId);
+            }
+            
+            broadcastLog(jobId, 'warn', `[GridEngine] Could not find geographic coordinates for "${location}".`);
             return null;
         }
 

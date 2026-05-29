@@ -17,6 +17,7 @@ export const validateRequest = (schema: ZodSchema, target: "body" | "query" | "p
             next();
         } catch (error) {
             if (error instanceof ZodError) {
+                console.error("[VALIDATION FAILED DETAILS]:", JSON.stringify(error.issues, null, 2));
                 res.status(400).json({ success: false, error: "Validation failed", details: (error as any).errors || (error as any).issues });
             } else {
                 next(error);
