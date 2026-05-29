@@ -331,9 +331,24 @@ export default function LandingPage() {
                             {lead.category}
                           </span>
                         </div>
-                        <span className="text-[10px] text-[#8b949e] font-mono mt-0.5">
-                          {lead.phone || "No phone"} • {lead.website || "No website"}
-                        </span>
+                        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1">
+                          {/* Masked Phone with subtle border */}
+                          <span className="text-[9px] text-[#8b949e] font-mono select-none tracking-wide bg-white/[0.02] border border-white/[0.04] px-1.5 py-0.2 rounded">
+                            {lead.phone ? `${lead.phone.slice(0, 6)} •••• •••` : "No phone"}
+                          </span>
+                          <span className="text-white/10 text-[9px]">•</span>
+                          {/* Masked Website with subtle border */}
+                          <span className="text-[9px] text-[#8b949e] font-mono select-none tracking-wide bg-white/[0.02] border border-white/[0.04] px-1.5 py-0.2 rounded">
+                            {lead.website ? `${lead.website.split('.')[0].slice(0, 3)}••••••.com` : "No website"}
+                          </span>
+                          
+                          {/* Premium badge on details */}
+                          {(lead.phone || lead.website) && (
+                            <span className="text-[8px] font-mono font-bold text-[#a371f7] bg-[#a371f7]/10 px-1 py-0.2 rounded border border-[#a371f7]/20 flex items-center gap-0.5 select-none animate-pulse">
+                              🔒 Premium
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1.5">
