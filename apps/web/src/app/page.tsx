@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/context/AuthContext";
 import { 
   ArrowRight, 
   MapPin, 
@@ -43,7 +42,6 @@ const MOCK_SCRAPES = [
 ];
 
 export default function LandingPage() {
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"extension" | "dashboard" | "enrich">("extension");
   const [copiedEmail, setCopiedEmail] = useState(false);
 
@@ -116,38 +114,34 @@ export default function LandingPage() {
             </div>
             <div className="flex flex-col">
               <span className="text-base font-bold tracking-tight text-white group-hover:text-[#58a6ff] transition-colors">GeoLead</span>
-              <span className="text-[10px] font-mono text-[#8b949e] tracking-widest uppercase -mt-1">v7.0 AI</span>
+              <span className="text-[10px] font-mono text-[#8b949e] tracking-widest uppercase -mt-1">v7.0 Open</span>
             </div>
           </Link>
 
           {/* Nav links */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[#8b949e]">
-            <Link href="#features" className="hover:text-white transition-colors">Features</Link>
-            <Link href="#how-it-works" className="hover:text-white transition-colors">How it works</Link>
-            <Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link>
+          <div className="hidden md:flex items-center gap-7 text-sm font-medium text-[#8b949e]">
+            <a href="#features" className="hover:text-white transition-colors">Features</a>
+            <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
+            <a href="#architecture" className="hover:text-white transition-colors">Architecture</a>
+            <a href="#pricing" className="hover:text-white transition-colors">Pricing & License</a>
           </div>
 
           <div className="flex items-center gap-3">
-            {user ? (
-              <Link href="/dashboard">
-                <Button className="h-9 px-5 rounded-lg bg-gradient-to-r from-[#58a6ff] to-[#79c0ff] text-[#030712] font-semibold text-xs tracking-wide uppercase hover:opacity-90 transition-opacity shadow-lg shadow-[#58a6ff]/10">
-                  Dashboard
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Link href="/login">
-                  <Button variant="ghost" className="h-9 px-4 rounded-lg text-sm text-[#8b949e] hover:text-white font-medium hover:bg-white/[0.03]">
-                    Log in
-                  </Button>
-                </Link>
-                <Link href="/signup">
-                  <Button className="h-9 px-5 rounded-lg bg-white text-[#030712] font-semibold text-xs tracking-wide uppercase hover:bg-white/95 transition-all shadow-md">
-                    Get Started
-                  </Button>
-                </Link>
-              </>
-            )}
+            <a 
+              href="https://github.com/divyrwal/GeoleadScraper" 
+              target="_blank" 
+              rel="noreferrer"
+            >
+              <Button variant="ghost" className="h-9 px-3.5 rounded-lg text-xs font-mono text-[#8b949e] hover:text-white hover:bg-white/[0.04] transition-all flex items-center gap-1.5">
+                <Terminal className="h-3.5 w-3.5 text-[#58a6ff]" />
+                GitHub
+              </Button>
+            </a>
+            <a href="#pricing">
+              <Button className="h-9 px-4 rounded-lg bg-white text-[#030712] font-semibold text-xs tracking-wide uppercase hover:bg-white/95 transition-all shadow-md">
+                Get Code / Setup
+              </Button>
+            </a>
           </div>
         </div>
       </nav>
@@ -173,20 +167,25 @@ export default function LandingPage() {
           </h1>
 
           <p className="mt-6 text-base sm:text-lg text-[#8b949e] max-w-xl leading-relaxed font-normal">
-            Automate B2B local lead generation with high-precision Google Maps extraction and AI data enrichment. Get the free base code to self-host, have our team handle a full organization setup for $300, or license the complete code for $999.
+            A self-hosted, map-based local lead generation & enrichment engine. Run it directly on your machine with our free open-source base code, get a full organization setup for $300, or purchase the complete code license for $999.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-            <Link href={user ? "/dashboard" : "/signup"}>
-              <Button className="h-12 px-7 rounded-xl bg-gradient-to-r from-[#58a6ff] to-[#a371f7] text-white font-bold text-sm tracking-wide uppercase hover:opacity-95 transition-opacity group w-full shadow-lg shadow-[#58a6ff]/10">
-                {user ? "Open Dashboard" : "Start Scraping Free"}
-                <ArrowRight className="ml-2 h-4.5 w-4.5 group-hover:translate-x-1 transition-transform duration-300" />
+            <a 
+              href="https://github.com/divyrwal/GeoleadScraper" 
+              target="_blank" 
+              rel="noreferrer"
+            >
+              <Button className="h-12 px-7 rounded-xl bg-gradient-to-r from-[#58a6ff] to-[#a371f7] text-white font-bold text-sm tracking-wide uppercase hover:opacity-95 transition-opacity group w-full shadow-lg shadow-[#58a6ff]/10 flex items-center justify-center gap-2">
+                <Terminal className="h-4.5 w-4.5" />
+                Get Base Code (Free)
+                <ExternalLink className="h-3.5 w-3.5 opacity-60 ml-0.5" />
               </Button>
-            </Link>
+            </a>
             <a href="#pricing">
               <Button variant="outline" className="h-12 px-7 rounded-xl border-white/[0.08] bg-white/[0.02] text-sm text-[#c9d1d9] hover:bg-white/[0.06] hover:text-white transition-all w-full flex items-center justify-center gap-2">
                 <Play className="h-4 w-4 text-[#58a6ff] fill-[#58a6ff]" />
-                View Plans & Pricing
+                View Plans & Setup
               </Button>
             </a>
           </div>
@@ -194,7 +193,11 @@ export default function LandingPage() {
           <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[#8b949e] font-mono">
             <div className="flex items-center gap-1.5">
               <Check className="h-4 w-4 text-[#3fb950]" />
-              Free base code (Self-setup)
+              Zero API required
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Check className="h-4 w-4 text-[#3fb950]" />
+              Free base code (MIT License)
             </div>
             <div className="flex items-center gap-1.5">
               <Check className="h-4 w-4 text-[#3fb950]" />
@@ -666,7 +669,7 @@ export default function LandingPage() {
       <div className="w-full border-t border-white/[0.06] relative z-10" />
 
       {/* ── Features List Grid ─────────────────────── */}
-      <section className="relative z-10 max-w-6xl mx-auto px-6 py-28">
+      <section id="features" className="relative z-10 max-w-6xl mx-auto px-6 py-28">
         <div className="text-center mb-20">
           <p className="text-xs font-bold tracking-widest uppercase text-[#58a6ff] mb-4 font-mono">Key Features</p>
           <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
@@ -716,6 +719,114 @@ export default function LandingPage() {
               <p className="text-sm text-[#8b949e] leading-relaxed">{feature.desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── Divider ─────────────────────────────────── */}
+      <div className="w-full border-t border-white/[0.06] relative z-10" />
+
+      {/* ── How It Works Section ────────────────────── */}
+      <section id="how-it-works" className="relative z-10 max-w-6xl mx-auto px-6 py-28">
+        <div className="text-center mb-20">
+          <p className="text-xs font-bold tracking-widest uppercase text-[#58a6ff] mb-4 font-mono">WORKFLOW</p>
+          <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
+            How GeoLead works in 3 simple steps
+          </h2>
+          <p className="text-sm text-[#8b949e] max-w-lg mx-auto mt-3">
+            Run the extraction locally in your browser. Zero third-party API keys required.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl relative overflow-hidden group hover:border-[#58a6ff]/30 transition-all duration-300">
+            <div className="h-10 w-10 rounded-xl bg-[#58a6ff]/10 border border-[#58a6ff]/20 text-[#58a6ff] font-mono font-bold flex items-center justify-center mb-6 text-sm">
+              01
+            </div>
+            <h3 className="text-lg font-bold text-white mb-3">Load Unpacked Extension</h3>
+            <p className="text-sm text-[#8b949e] leading-relaxed">
+              Load the Chrome Extension from <code className="text-[#58a6ff] text-xs bg-white/[0.04] px-1.5 py-0.5 rounded">apps/extension</code> directly in Chrome Developer Mode. No web store approval or billing setup needed.
+            </p>
+          </div>
+
+          <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl relative overflow-hidden group hover:border-[#58a6ff]/30 transition-all duration-300">
+            <div className="h-10 w-10 rounded-xl bg-[#79c0ff]/10 border border-[#79c0ff]/20 text-[#79c0ff] font-mono font-bold flex items-center justify-center mb-6 text-sm">
+              02
+            </div>
+            <h3 className="text-lg font-bold text-white mb-3">Target & Deep Scan</h3>
+            <p className="text-sm text-[#8b949e] leading-relaxed">
+              Enter target keywords (e.g. "Dentists in Austin") into the sidepanel. The engine navigates Google Maps, executes grid scans, and extracts rich contact profiles.
+            </p>
+          </div>
+
+          <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl relative overflow-hidden group hover:border-[#58a6ff]/30 transition-all duration-300">
+            <div className="h-10 w-10 rounded-xl bg-[#a371f7]/10 border border-[#a371f7]/20 text-[#a371f7] font-mono font-bold flex items-center justify-center mb-6 text-sm">
+              03
+            </div>
+            <h3 className="text-lg font-bold text-white mb-3">Local AI Scoring & Export</h3>
+            <p className="text-sm text-[#8b949e] leading-relaxed">
+              Leads are automatically evaluated and scored from 0-100. Export clean, deduplicated prospect lists with phone numbers and emails straight to CSV.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Divider ─────────────────────────────────── */}
+      <div className="w-full border-t border-white/[0.06] relative z-10" />
+
+      {/* ── Architecture Section ────────────────────── */}
+      <section id="architecture" className="relative z-10 max-w-6xl mx-auto px-6 py-28">
+        <div className="text-center mb-20">
+          <p className="text-xs font-bold tracking-widest uppercase text-[#58a6ff] mb-4 font-mono">ARCHITECTURE</p>
+          <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
+            Modular, decoupled codebase
+          </h2>
+          <p className="text-sm text-[#8b949e] max-w-lg mx-auto mt-3">
+            Clean TypeScript and JavaScript monorepo designed for full developer freedom and self-hosting.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl hover:border-white/[0.15] transition-all">
+            <div className="flex items-center gap-2 mb-4 text-[#58a6ff]">
+              <Layers className="h-5 w-5" />
+              <span className="font-mono text-xs font-bold">apps/extension</span>
+            </div>
+            <h3 className="text-base font-bold text-white mb-2">Chrome Extension</h3>
+            <p className="text-xs text-[#8b949e] leading-relaxed mb-4">
+              Manifest V3 scraper with sidebar UI, DOM traversal scripts, rate-limit controllers, and Google Maps coordinate nav engines.
+            </p>
+            <span className="text-[10px] font-mono text-[#3fb950] bg-[#3fb950]/10 border border-[#3fb950]/20 px-2 py-0.5 rounded">
+              Runs in-browser
+            </span>
+          </div>
+
+          <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl hover:border-white/[0.15] transition-all">
+            <div className="flex items-center gap-2 mb-4 text-[#79c0ff]">
+              <Terminal className="h-5 w-5" />
+              <span className="font-mono text-xs font-bold">apps/api</span>
+            </div>
+            <h3 className="text-base font-bold text-white mb-2">Node.js Engine</h3>
+            <p className="text-xs text-[#8b949e] leading-relaxed mb-4">
+              Local pipeline for email discovery, Place ID deduplication, Ollama AI pitch generation, and background batch processors.
+            </p>
+            <span className="text-[10px] font-mono text-[#79c0ff] bg-[#79c0ff]/10 border border-[#79c0ff]/20 px-2 py-0.5 rounded">
+              Local / Self-hosted
+            </span>
+          </div>
+
+          <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl hover:border-white/[0.15] transition-all">
+            <div className="flex items-center gap-2 mb-4 text-[#a371f7]">
+              <Globe className="h-5 w-5" />
+              <span className="font-mono text-xs font-bold">apps/web</span>
+            </div>
+            <h3 className="text-base font-bold text-white mb-2">Next.js UI & Web</h3>
+            <p className="text-xs text-[#8b949e] leading-relaxed mb-4">
+              Modern dark-mode website and client dashboard with interactive simulation, CRM lead tables, map pins, and presentation views.
+            </p>
+            <span className="text-[10px] font-mono text-[#a371f7] bg-[#a371f7]/10 border border-[#a371f7]/20 px-2 py-0.5 rounded">
+              Zero API required
+            </span>
+          </div>
         </div>
       </section>
 

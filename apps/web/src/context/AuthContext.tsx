@@ -1,9 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { User, onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import React, { createContext, useContext, useState } from "react";
 
 export type UserRole = "user" | "admin";
 export type UserStatus = "pending" | "approved" | "suspended";
@@ -18,62 +15,37 @@ export interface UserProfile {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: any;
   profile: UserProfile | null;
   loading: boolean;
   logout: () => Promise<void>;
 }
 
+const defaultProfile: UserProfile = {
+  uid: "guest-user",
+  email: "guest@geolead.local",
+  displayName: "Guest User",
+  role: "admin",
+  status: "approved",
+  createdAt: new Date().toISOString(),
+};
+
 const AuthContext = createContext<AuthContextType>({
-  user: null,
-  profile: null,
-  loading: true,
+  user: { uid: "guest-user", email: "guest@geolead.local" },
+  profile: defaultProfile,
+  loading: false,
   logout: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
+// Standalone offline AuthProvider for zero-API standalone website
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user] = useState<any>({ uid: "guest-user", email: "guest@geolead.local" });
+  const [profile] = useState<UserProfile | null>(defaultProfile);
+  const [loading] = useState(false);
 
-  const logout = async () => {
-    await signOut(auth);
-  };
-
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-
-      if (firebaseUser) {
-        // Subscribe to real-time profile updates
-        const docRef = doc(db, "users", firebaseUser.uid);
-        const unsubscribeProfile = onSnapshot(
-          docRef,
-          (docSnap) => {
-            if (docSnap.exists()) {
-              setProfile(docSnap.data() as UserProfile);
-            } else {
-              setProfile(null);
-            }
-            setLoading(false);
-          },
-          (error) => {
-            console.error("Error fetching user profile:", error);
-            setLoading(false);
-          }
-        );
-
-        return () => unsubscribeProfile();
-      } else {
-        setProfile(null);
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribeAuth();
-  }, []);
+  const logout = async () => {};
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, logout }}>

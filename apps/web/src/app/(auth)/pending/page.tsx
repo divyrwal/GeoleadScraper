@@ -1,43 +1,29 @@
 "use client";
 
-import { AuthGuard } from "@/components/auth/AuthGuard";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/context/AuthContext";
-import { Clock } from "lucide-react";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
 
 export default function PendingPage() {
-  const { logout } = useAuth();
-
   return (
-    <AuthGuard blockIfApproved={true}>
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:50px_50px]" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="h-[40rem] w-[40rem] bg-primary/10 rounded-full blur-3xl opacity-20 animate-pulse" />
+    <div className="min-h-screen bg-[#030712] text-[#f3f4f6] flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-[#0c1117] border border-white/[0.08] rounded-2xl p-8 text-center shadow-2xl">
+        <div className="h-12 w-12 rounded-xl bg-[#3fb950]/10 border border-[#3fb950]/20 flex items-center justify-center mx-auto mb-6">
+          <CheckCircle2 className="h-6 w-6 text-[#3fb950]" />
         </div>
         
-        <Card className="w-full max-w-md relative border-border/50 shadow-2xl bg-background/60 backdrop-blur-xl">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto mb-4 w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center border border-primary/20 relative">
-              <div className="absolute inset-0 rounded-full border-t-2 border-primary animate-spin" />
-              <Clock className="w-8 h-8 text-primary" />
-            </div>
-            <CardTitle className="text-2xl font-bold tracking-tight">Approval Pending</CardTitle>
-            <CardDescription className="text-base mt-2">
-              Your account has been created successfully.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-center text-sm text-muted-foreground pb-6">
-            An administrator is currently reviewing your account. You will automatically be redirected to the dashboard once approved.
-          </CardContent>
-          <CardFooter className="flex justify-center border-t border-border/50 pt-6">
-            <Button variant="ghost" onClick={logout} className="text-muted-foreground hover:text-foreground">
-              Sign in with a different account
-            </Button>
-          </CardFooter>
-        </Card>
+        <h1 className="text-2xl font-bold text-white mb-2">Standalone Website</h1>
+        <p className="text-sm text-[#8b949e] mb-8 leading-relaxed">
+          GeoLead operates as an open-source tool with zero account or approval requirements.
+        </p>
+
+        <Link href="/" className="w-full block">
+          <Button className="w-full h-11 rounded-xl bg-white text-[#030712] hover:bg-white/90 font-bold text-xs uppercase tracking-wide">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Return to Home
+          </Button>
+        </Link>
       </div>
-    </AuthGuard>
+    </div>
   );
 }

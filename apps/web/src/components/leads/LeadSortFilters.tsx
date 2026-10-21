@@ -15,6 +15,8 @@ import { useState, useEffect, useMemo } from "react";
 import { PROFESSIONS } from "@/lib/constants/directory-data";
 import { TIER_OPTIONS, getCityTier } from "@/lib/utils/location-utils";
 
+import { Country, State, City as CityData } from "country-state-city";
+
 interface LeadSortFiltersProps {
     filters: LeadFilter;
     onFilterChange: (filters: LeadFilter) => void;
@@ -31,43 +33,38 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
     const [professionNode, setProfessionNode] = useState<string>("");
     const [subProfession, setSubProfession] = useState<string>("");
 
-    // Memoized base options or API-driven
+    // In-memory country-state-city data (100% offline, zero API)
     const [countries, setCountries] = useState<any[]>([]);
     const [states, setStates] = useState<any[]>([]);
     const [cities, setCities] = useState<any[]>([]);
 
     useEffect(() => {
-        const fetchCountries = async () => {
-            try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries`, {
-                    headers: { "Authorization": `Bearer ${process.env.NEXT_PUBLIC_GEOLEAD_API_KEY || "fallback-secret-for-local-crm"}` }
-                });
-                const data = await res.json();
-                if (data.success) setCountries(data.data);
-            } catch (e) {
-                console.error("Failed to fetch countries", e);
-            }
-        };
-        fetchCountries();
+        try {
+            const allCountries = Country.getAllCountries().map(c => ({
+                name: c.name,
+                code: c.isoCode
+            }));
+            setCountries(allCountries);
+        } catch (e) {
+            console.error("Failed to load countries", e);
+        }
     }, []);
 
     useEffect(() => {
         if (!countryCode) {
             setStates([]);
+            setCities([]);
             return;
         }
-        const fetchStates = async () => {
-            try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries/${countryCode}/states`, {
-                    headers: { "Authorization": `Bearer ${process.env.NEXT_PUBLIC_GEOLEAD_API_KEY || "fallback-secret-for-local-crm"}` }
-                });
-                const data = await res.json();
-                if (data.success) setStates(data.data);
-            } catch (e) {
-                console.error("Failed to fetch states", e);
-            }
-        };
-        fetchStates();
+        try {
+            const allStates = State.getStatesOfCountry(countryCode).map(s => ({
+                name: s.name,
+                code: s.isoCode
+            }));
+            setStates(allStates);
+        } catch (e) {
+            console.error("Failed to load states", e);
+        }
     }, [countryCode]);
 
     useEffect(() => {
@@ -75,18 +72,14 @@ export default function LeadSortFilters({ filters, onFilterChange }: LeadSortFil
             setCities([]);
             return;
         }
-        const fetchCities = async () => {
-            try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/locations/countries/${countryCode}/states/${stateCode}/cities`, {
-                    headers: { "Authorization": `Bearer ${process.env.NEXT_PUBLIC_GEOLEAD_API_KEY || "fallback-secret-for-local-crm"}` }
-                });
-                const data = await res.json();
-                if (data.success) setCities(data.data);
-            } catch (e) {
-                console.error("Failed to fetch cities", e);
-            }
-        };
-        fetchCities();
+        try {
+            const allCities = CityData.getCitiesOfState(countryCode, stateCode).map(c => ({
+                name: c.name
+            }));
+            setCities(allCities);
+        } catch (e) {
+            console.error("Failed to load cities", e);
+        }
     }, [countryCode, stateCode]);
 
     // When location dropdowns change, build the filter
