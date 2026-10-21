@@ -1,5 +1,8 @@
 # GeoLead — Scraper, CRM & Enrichment Engine
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Repo](https://img.shields.io/badge/GitHub-divyrwal%2FGeoleadScraper-brightgreen)](https://github.com/divyrwal/GeoleadScraper)
+
 A locally-hosted, map-based lead generation, enrichment, and CRM tool with AI-powered analysis.
 GeoLead consists of a Chrome Extension to scrape Google Maps data, a Node.js/Express backend to store and enrich the data, and a Next.js frontend to visualize and manage the leads.
 
@@ -109,3 +112,23 @@ All config lives in the root `.env` file workspace.
 | POST | `/api/leads/enrich/batch`| Start async batch enrichment worker |
 | POST | `/api/leads/:id/analyze` | Trigger Ollama AI analysis |
 | GET | `/api/leads/export` | CSV standard export |
+
+---
+
+## 💼 Open Source & Commercial Options
+
+GeoLead provides flexible options depending on your team's needs:
+
+1. **Free Base Code ($0)**: Open source under the [MIT License](LICENSE). Directly clone and self-host the core codebase on your own infrastructure. You handle the installation, dependencies, and environment setup yourself.
+2. **Turnkey Organization Setup ($300)**: Done-for-you production deployment managed end-to-end by our engineering team for your organization.
+3. **Complete Code License ($999)**: Official commercial license of the entire codebase with complete unrestricted ownership, white-labeling rights, and priority engineering transfer.
+
+To purchase the **Organization Setup** or **Complete Code License**, reach out directly to:  
+📧 **geolead@arcadealliancenetwork.com**
+
+---
+
+## 📄 License
+
+This project is open-source software licensed under the [MIT License](LICENSE).
+
