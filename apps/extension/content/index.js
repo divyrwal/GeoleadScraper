@@ -24,6 +24,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         GeoLeadScraper.shouldStop = false;
+
+        // v7.1: Pass speed setting to scraper (SMELL-3 fix)
+        if (request.speed) {
+            GeoLeadScraper.speed = request.speed;
+        }
+
         sendResponse({ started: true });
 
         // Start the extraction loop asynchronously

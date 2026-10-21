@@ -1,16 +1,24 @@
 /**
  * content/scraper.js
  * The core state-machine orchestrator for sequential lead extraction.
- * Uses incremental scroll + extract (no 2-phase approach).
+ * Uses incremental scroll + extract (Phase 1 scroll, Phase 2 extract).
  * Every async boundary re-queries the feed for fresh DOM references.
+ *
+ * v7.2 — Critical fixes for premature zone exit:
+ *   FIX 1: extraction_done now sends totalCards (not allLeads.length) as total_found
+ *   FIX 2: Removed broken window.location.href recovery (destroys JS context)
+ *          → Replaced with DOM-level re-navigation via history API + Escape key
+ *   FIX 3: isEndOfList check deferred until scrollStaleCount >= 3
+ *          → Prevents false-positive end-of-list detection after back-navigation
+ *   FIX 4: Speed parameter wired to extraction delays
  */
 
 window.GeoLeadScraper = {
     // State
     isExtracting: false,
     shouldStop: false,
-
     activeBounds: null,
+    speed: 300, // Default speed (ms), overridable from background
 
     // --- Public API ---
 
@@ -37,7 +45,7 @@ window.GeoLeadScraper = {
 
     /**
      * Main extraction entry point.
-     * Implements an incremental scroll + extract pipeline.
+     * Implements a 2-phase pipeline: scroll-to-discover, then sliding-window extract.
      */
     extractAllLeads: async function () {
         if (this.isExtracting) {
@@ -60,6 +68,10 @@ window.GeoLeadScraper = {
         let failCount = 0;
         let consecutiveFailures = 0;
         let skipCount = 0;
+        let totalCards = 0; // Track across try/finally for extraction_done
+
+        // Use configurable speed for delays (min 200ms, max 2000ms)
+        const speedDelay = Math.max(200, Math.min(this.speed || 300, 2000));
 
         // Verify feed exists
         let feed = GeoLeadDOM.getFreshFeed();
@@ -94,7 +106,7 @@ window.GeoLeadScraper = {
                 return { started: true, stopped: true };
             }
 
-            const totalCards = scrollResult.totalLoaded;
+            totalCards = scrollResult.totalLoaded;
             GeoLeadUtils.contentLog('INFO', `[PHASE1] Scroll complete: ${totalCards} cards loaded, reachedEnd=${scrollResult.reachedEnd}`);
 
             // Scroll back to top before extraction
@@ -116,6 +128,8 @@ window.GeoLeadScraper = {
             let processedCount = 0;
             let scrollStaleCount = 0;
             let lastProgressTime = Date.now();
+            let feedRecoveryAttempts = 0;
+            const MAX_FEED_RECOVERIES = 3;
 
             while (processedCount < totalCards && !this.shouldStop) {
                 // Circuit breaker — only for feed-level failures
@@ -135,11 +149,88 @@ window.GeoLeadScraper = {
                     lastProgressTime = Date.now();
                 }
 
-                const liveFeed = GeoLeadDOM.getFreshFeed();
+                let liveFeed = GeoLeadDOM.getFreshFeed();
                 if (!liveFeed) {
-                    GeoLeadUtils.contentLog('WARN', '[FEED:LOST] Feed container not found.');
+                    // FIX 2: DOM-level feed recovery (no page reload that destroys JS state)
+                    if (feedRecoveryAttempts < MAX_FEED_RECOVERIES) {
+                        feedRecoveryAttempts++;
+                        GeoLeadUtils.contentLog('WARN', `[FEED:LOST] Attempting DOM recovery #${feedRecoveryAttempts}...`);
+                        GeoLeadUtils.sendMsg({
+                            type: "progress", status: "extracting",
+                            found: totalCards, scraped: allLeads.length,
+                            message: `⚠️ Feed lost — recovering (attempt ${feedRecoveryAttempts})...`
+                        });
+
+                        // Strategy 1: Try Escape key to dismiss any overlay/panel
+                        document.dispatchEvent(new KeyboardEvent('keydown', {
+                            key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true
+                        }));
+                        await GeoLeadUtils.sleep(1500);
+
+                        liveFeed = GeoLeadDOM.getFreshFeed();
+                        if (liveFeed) {
+                            GeoLeadUtils.contentLog('INFO', `[FEED:RECOVERED] Escape key restored feed`);
+                            consecutiveFailures = 0;
+                            continue;
+                        }
+
+                        // Strategy 2: Click back button
+                        const backResult = await GeoLeadNavigator.goBackToFeed();
+                        if (backResult.success) {
+                            liveFeed = GeoLeadDOM.getFreshFeed();
+                            if (liveFeed) {
+                                GeoLeadUtils.contentLog('INFO', `[FEED:RECOVERED] Back navigation restored feed`);
+                                consecutiveFailures = 0;
+                                continue;
+                            }
+                        }
+
+                        // Strategy 3: Use history API to go back multiple steps
+                        for (let i = 0; i < 3; i++) {
+                            window.history.back();
+                            await GeoLeadUtils.sleep(1500);
+                            liveFeed = GeoLeadDOM.getFreshFeed();
+                            if (liveFeed) {
+                                GeoLeadUtils.contentLog('INFO', `[FEED:RECOVERED] History back (${i+1}) restored feed`);
+                                consecutiveFailures = 0;
+                                break;
+                            }
+                        }
+                        if (liveFeed) continue;
+
+                        // Strategy 4: Use search box to re-trigger search (stays on same page)
+                        const searchInput = document.querySelector('#searchboxinput');
+                        if (searchInput) {
+                            searchInput.focus();
+                            await GeoLeadUtils.sleep(200);
+                            // Press Enter to re-run the search
+                            searchInput.dispatchEvent(new KeyboardEvent('keydown', {
+                                key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true
+                            }));
+                            await GeoLeadUtils.sleep(3000);
+                            liveFeed = GeoLeadDOM.getFreshFeed();
+                            if (liveFeed) {
+                                GeoLeadUtils.contentLog('INFO', `[FEED:RECOVERED] Search re-trigger restored feed`);
+                                // Re-scroll to load all cards
+                                await GeoLeadScroller.scrollToLoadAll(() => {});
+                                const freshFeed = GeoLeadDOM.getFreshFeed();
+                                if (freshFeed) freshFeed.scrollTop = 0;
+                                await GeoLeadUtils.sleep(500);
+                                consecutiveFailures = 0;
+                                continue;
+                            }
+                        }
+
+                        GeoLeadUtils.contentLog('ERROR', `[FEED:RECOVERY_FAILED] Strategy ${feedRecoveryAttempts} failed`);
+                        continue; // Try again (feedRecoveryAttempts incremented)
+                    }
+
+                    GeoLeadUtils.contentLog('WARN', '[FEED:LOST] All recovery attempts exhausted. Ending extraction.');
                     break;
                 }
+
+                // Reset feed recovery counter on successful feed access
+                feedRecoveryAttempts = 0;
 
                 const cards = Array.from(liveFeed.querySelectorAll(SELECTORS.feed.article[0]));
                 
@@ -167,10 +258,15 @@ window.GeoLeadScraper = {
                     try {
                         const result = await this._processCardElement(
                             targetCard, processedCount, totalCards, processedNames, processedPlaceIds,
-                            searchQuery, allLeads, pendingBatch, BATCH_SIZE, skipCount
+                            searchQuery, allLeads, pendingBatch, BATCH_SIZE, skipCount, speedDelay
                         );
 
-                        if (result.feedLost) break;
+                        if (result.feedLost) {
+                            // Don't break — let the feed recovery above handle it
+                            consecutiveFailures++;
+                            processedCount++;
+                            continue;
+                        }
                         if (result.extracted || result.partial) {
                             consecutiveFailures = 0;
                             lastProgressTime = Date.now();
@@ -187,7 +283,7 @@ window.GeoLeadScraper = {
                     }
                 } else {
                     // All visible cards are already processed. Scroll feed down to load next sliding window
-                    GeoLeadUtils.contentLog('INFO', '[PHASE2] All visible cards processed. Scrolling down feed...');
+                    GeoLeadUtils.contentLog('INFO', `[PHASE2] All visible cards processed (${processedCount}/${totalCards}). Scrolling for more...`);
                     
                     if (cards.length > 0) {
                         cards[cards.length - 1].scrollIntoView({ behavior: 'instant', block: 'end' });
@@ -201,9 +297,35 @@ window.GeoLeadScraper = {
                     const newCards = newFeed ? newFeed.querySelectorAll(SELECTORS.feed.article[0]) : [];
                     if (newCards.length === cards.length) {
                         scrollStaleCount++;
-                        if (scrollStaleCount >= 6 || GeoLeadDOM.isEndOfList(newFeed)) {
-                            GeoLeadUtils.contentLog('INFO', '[PHASE2] End of list reached. No more cards loaded.');
+
+                        // FIX 3: Only trust isEndOfList after multiple stale attempts
+                        // AND only if we've processed at least 80% of expected cards.
+                        // The end-of-list marker from Phase 1 may still be in the DOM
+                        // even when we haven't scrolled to the bottom yet.
+                        const processedPercent = processedCount / totalCards;
+                        const endOfListReached = GeoLeadDOM.isEndOfList(newFeed);
+
+                        if (scrollStaleCount >= 6) {
+                            GeoLeadUtils.contentLog('INFO', `[PHASE2] Stale x6 at ${processedCount}/${totalCards}. Stopping.`);
                             break;
+                        }
+                        
+                        if (endOfListReached && scrollStaleCount >= 3 && processedPercent >= 0.8) {
+                            GeoLeadUtils.contentLog('INFO', `[PHASE2] End of list confirmed at ${processedCount}/${totalCards} (${Math.round(processedPercent*100)}%).`);
+                            break;
+                        }
+
+                        if (endOfListReached && processedPercent < 0.8) {
+                            // End-of-list marker is visible but we haven't processed enough cards.
+                            // This is likely a false positive from Phase 1's scroll.
+                            // Try scrolling back to top and re-scrolling to load fresh cards.
+                            GeoLeadUtils.contentLog('WARN', `[PHASE2] End-of-list marker visible but only ${processedCount}/${totalCards} processed. Resetting scroll...`);
+                            if (newFeed) {
+                                newFeed.scrollTop = 0;
+                                await GeoLeadUtils.sleep(500);
+                                newFeed.scrollTop = newFeed.scrollHeight;
+                                await GeoLeadUtils.sleep(800);
+                            }
                         }
                     } else {
                         scrollStaleCount = 0;
@@ -233,15 +355,18 @@ window.GeoLeadScraper = {
             });
         } finally {
             this.isExtracting = false;
+            // FIX 1: Send totalCards (the Phase 1 discovered count) as total_found,
+            // NOT allLeads.length. This is critical for the zone re-entry check
+            // in scanner.js to detect short extractions.
             GeoLeadUtils.sendMsg({
                 type: "extraction_done",
-                total_found: allLeads.length,
-                total_scraped: allLeads.length,
+                total_found: totalCards,        // ← Phase 1 discovered count
+                total_scraped: allLeads.length, // ← Actually extracted count
                 stopped: this.shouldStop
             });
         }
 
-        return { started: true, total_found: allLeads.length, total_scraped: allLeads.length };
+        return { started: true, total_found: totalCards, total_scraped: allLeads.length };
     },
 
     // --- Helpers ---
@@ -250,7 +375,7 @@ window.GeoLeadScraper = {
      * Process a single card: load, extract basics, dedup, click in, extract detail, go back.
      * Returns an object indicating what happened.
      */
-    _processCardElement: async function (card, processedCount, totalCards, processedNames, processedPlaceIds, searchQuery, allLeads, pendingBatch, BATCH_SIZE, skipCount) {
+    _processCardElement: async function (card, processedCount, totalCards, processedNames, processedPlaceIds, searchQuery, allLeads, pendingBatch, BATCH_SIZE, skipCount, speedDelay) {
         if (!card) return { skipped: false };
 
         // Extract card basics
@@ -317,7 +442,7 @@ window.GeoLeadScraper = {
                 pendingBatch.length = 0;
             }
 
-            await GeoLeadUtils.sleep(500);
+            await GeoLeadUtils.sleep(speedDelay);
             return { partial: true };
         }
 
@@ -378,8 +503,8 @@ window.GeoLeadScraper = {
             }
         }
 
-        // Speed delay
-        await GeoLeadUtils.sleep(600);
+        // Speed delay (configurable)
+        await GeoLeadUtils.sleep(speedDelay);
 
         return { extracted: true };
     },

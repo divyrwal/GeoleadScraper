@@ -49,9 +49,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // 4. Action Handlers
     if (message.action === 'start_grid_scan') {
-        // Legacy Support for single tab mode (treated as 1-tab campaign)
-        scanner.startBulk([message.query], message.location, message.gridSize || 3, 1, message.saveMode)
-        .catch(err => {
+        // BUG-12: Pass targetTabId so scanner can reuse existing Maps tab
+        scanner.startBulk(
+            [message.query], message.location, message.gridSize || 3, 1,
+            message.saveMode, message.targetTabId
+        ).catch(err => {
             chrome.runtime.sendMessage({ type: "progress", _fromBg: true, status: "error", message: `❌ Error: ${err.message}` });
         });
         sendResponse({ started: true });
@@ -92,6 +94,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
                 const count = scanner.bufferedLeads.length;
                 scanner.bufferedLeads = [];
+                // R2: Clear persisted buffer after successful flush
+                chrome.storage.local.remove('_bufferedLeads');
                 sendResponse({ success: true, uploaded: count });
             } catch (err) {
                 sendResponse({ success: false, error: err.message });

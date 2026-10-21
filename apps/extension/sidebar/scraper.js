@@ -72,8 +72,21 @@ export class ScraperController {
             });
         }
 
-        // Periodic buffer check
-        setInterval(() => this.updateBufferStatus(), 2000);
+        // SMELL-6: Only poll buffer when needed (start/stop dynamically)
+        this._bufferInterval = null;
+        this._startBufferPolling();
+    }
+
+    _startBufferPolling() {
+        if (this._bufferInterval) return;
+        this._bufferInterval = setInterval(() => this.updateBufferStatus(), 2000);
+    }
+
+    _stopBufferPolling() {
+        if (this._bufferInterval) {
+            clearInterval(this._bufferInterval);
+            this._bufferInterval = null;
+        }
     }
 
     updateBufferStatus() {
@@ -149,6 +162,11 @@ export class ScraperController {
         }
     }
 
+    // S3: HTML escape to prevent XSS from business names
+    _escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
     renderBuffer(leads) {
         this.ui.bufferItems.innerHTML = '';
         if (!leads || leads.length === 0) {
@@ -160,9 +178,13 @@ export class ScraperController {
         displayLeads.reverse().forEach(lead => {
             const div = document.createElement('div');
             div.className = 'buffer-item';
+            // S3: Escape all user-supplied data to prevent XSS
+            const safeName = this._escapeHtml(lead.business_name || 'Unknown');
+            const safeAddr = this._escapeHtml(lead.address || '');
+            const safePhone = lead.phone_number ? ` • ${this._escapeHtml(lead.phone_number)}` : '';
             div.innerHTML = `
-                <span class="buffer-item-name">${lead.business_name || 'Unknown'}</span>
-                <span class="buffer-item-loc">${lead.address || ''} ${lead.phone_number ? ` • ${lead.phone_number}` : ''}</span>
+                <span class="buffer-item-name">${safeName}</span>
+                <span class="buffer-item-loc">${safeAddr}${safePhone}</span>
             `;
             this.ui.bufferItems.appendChild(div);
         });
@@ -201,18 +223,32 @@ export class ScraperController {
 
         const queries = queryText.split('\n').map(q => q.trim()).filter(q => q);
         const maxTabs = parseInt(this.ui.bulkParallelTabs.value) || 2;
-        const saveMode = this.ui.bulkSaveMode.checked;
+        // BUG-9: Invert the checked value — checked=true now means "Direct/Live" (saveMode=false)
+        const saveMode = !this.ui.bulkSaveMode.checked;
+
+        // BUG-1: Build location from the single-mode fields (fallback for queries without embedded location)
+        const country = this.ui.browserCountry.options[this.ui.browserCountry.selectedIndex]?.text || '';
+        const state = this.ui.browserState.options[this.ui.browserState.selectedIndex]?.text || '';
+        const city = this.ui.browserLocation.value.trim();
+        let bulkLocation = '';
+        if (city) bulkLocation += city;
+        if (state && state !== 'Select State') bulkLocation += (bulkLocation ? ', ' : '') + state;
+        if (country && country !== 'Select Country') bulkLocation += (bulkLocation ? ', ' : '') + country;
+
+        // BUG-2: Read gridSize from the single-mode UI instead of hardcoding 3
+        const gridSize = parseInt(this.ui.browserGridSize.value) || 3;
 
         this.term.add(`🚀 Campaign Started: ${queries.length} queries across ${maxTabs} tabs...`, "info");
+        if (bulkLocation) this.term.add(`📍 Default location: ${bulkLocation}`, 'info');
         this.ui.progressMessage.textContent = "Deploying workers...";
 
         chrome.runtime.sendMessage({
             action: "start_campaign",
             queries,
-            location: "", // Query itself usually contains location in bulk list
+            location: bulkLocation,
             maxTabs,
             saveMode,
-            gridSize: 3 // Default for bulk
+            gridSize
         });
     }
 
@@ -308,7 +344,8 @@ export class ScraperController {
         }
 
         if (message.type === "extraction_done") {
-            this.onComplete(0, message.total_scraped);
+            // BUG-11: Pass real found value instead of always 0
+            this.onComplete(message.total_found || message.total_scraped || 0, message.total_scraped);
         }
     }
 

@@ -1,6 +1,9 @@
 /**
  * background/logger.js
  * Persistent debug log handler for the background service worker.
+ *
+ * v7.1 — BUG-3 Fix: processQueue now properly awaits recursive calls and
+ * doesn't clear the queue until entries are safely written.
  */
 
 export class Logger {
@@ -15,6 +18,7 @@ export class Logger {
         this.isLogging = true;
 
         try {
+            // Take a snapshot of current queue entries
             const entries = [...this.logQueue];
             this.logQueue = [];
 
@@ -33,8 +37,9 @@ export class Logger {
 
         this.isLogging = false;
 
+        // BUG-3 Fix: Await the recursive call to prevent overlap
         if (this.logQueue.length > 0) {
-            this.processQueue();
+            await this.processQueue();
         }
     }
 
@@ -48,6 +53,7 @@ export class Logger {
         };
 
         this.logQueue.push(entry);
+        // Fire and forget — but processQueue has its own mutex via isLogging
         this.processQueue();
     }
 }

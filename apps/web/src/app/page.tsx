@@ -20,7 +20,14 @@ import {
   CheckCircle,
   Database,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Code2,
+  Building2,
+  ShieldCheck,
+  Mail,
+  Copy,
+  ExternalLink,
+  Terminal
 } from "lucide-react";
 
 // Mock database of businesses to cycle in our live simulation
@@ -38,6 +45,14 @@ const MOCK_SCRAPES = [
 export default function LandingPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"extension" | "dashboard" | "enrich">("extension");
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  const handleCopyEmail = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    navigator.clipboard.writeText("geolead@arcadealliancenetwork.com");
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2200);
+  };
   
   // Real-time animation states for our hero simulation
   const [liveLeads, setLiveLeads] = useState<any[]>([]);
@@ -158,7 +173,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mt-6 text-base sm:text-lg text-[#8b949e] max-w-xl leading-relaxed font-normal">
-            Request target lists from your web dashboard. Our cloud engines scrape, clean, and AI-enrich high-quality local leads on demand. Scraper Chrome extension available exclusively on Enterprise plans.
+            Automate B2B local lead generation with high-precision Google Maps extraction and AI data enrichment. Get the free base code to self-host, have our team handle a full organization setup for $300, or license the complete code for $999.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
@@ -168,22 +183,26 @@ export default function LandingPage() {
                 <ArrowRight className="ml-2 h-4.5 w-4.5 group-hover:translate-x-1 transition-transform duration-300" />
               </Button>
             </Link>
-            <a href="#how-it-works">
+            <a href="#pricing">
               <Button variant="outline" className="h-12 px-7 rounded-xl border-white/[0.08] bg-white/[0.02] text-sm text-[#c9d1d9] hover:bg-white/[0.06] hover:text-white transition-all w-full flex items-center justify-center gap-2">
                 <Play className="h-4 w-4 text-[#58a6ff] fill-[#58a6ff]" />
-                See How It Works
+                View Plans & Pricing
               </Button>
             </a>
           </div>
 
-          <div className="mt-6 flex items-center gap-6 text-xs text-[#8b949e] font-mono">
+          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[#8b949e] font-mono">
             <div className="flex items-center gap-1.5">
               <Check className="h-4 w-4 text-[#3fb950]" />
-              No credit card required
+              Free base code (Self-setup)
             </div>
             <div className="flex items-center gap-1.5">
               <Check className="h-4 w-4 text-[#3fb950]" />
-              Free 50 leads on signup
+              $300 Turnkey Org Setup
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Check className="h-4 w-4 text-[#3fb950]" />
+              $999 Complete License
             </div>
           </div>
         </div>
@@ -703,141 +722,282 @@ export default function LandingPage() {
       {/* ── Divider ─────────────────────────────────── */}
       <div className="w-full border-t border-white/[0.06] relative z-10" />
 
-      {/* ── Pricing Section ─────────────────────────── */}
+      {/* ── Pricing & Licensing Section ──────────────── */}
       <section id="pricing" className="relative z-10 max-w-6xl mx-auto px-6 py-28">
-        <div className="text-center mb-20">
-          <p className="text-xs font-bold tracking-widest uppercase text-[#58a6ff] mb-4 font-mono">PRICING</p>
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#58a6ff]/20 bg-[#58a6ff]/10 text-xs font-semibold text-[#58a6ff] tracking-wide mb-4 font-mono">
+            PRICING & LICENSING
+          </div>
           <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
-            Simple pricing, massive results
+            Flexible options for every team
           </h2>
-          <p className="text-sm text-[#8b949e] max-w-md mx-auto mt-3">
-            Start for free, upgrade only when you are ready to scale out your cold sales pipeline.
+          <p className="text-sm sm:text-base text-[#8b949e] max-w-2xl mx-auto mt-4 leading-relaxed">
+            Get the free base code to set up on your own, let our team deploy a complete turnkey setup for your organization for $300, or own the complete code license for $999.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          {/* Plan 1: Basic */}
-          <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl flex flex-col relative overflow-hidden group hover:border-[#58a6ff]/20 transition-all duration-300">
-            <h3 className="text-lg font-bold text-white mb-1">Basic Plan</h3>
-            <p className="text-xs text-[#8b949e] mb-6">Direct lead requests via dashboard (500/mo)</p>
-            
-            <div className="flex items-baseline gap-1 mb-8">
-              <span className="text-4xl font-extrabold text-white">$10</span>
-              <span className="text-xs text-[#8b949e]">/ month</span>
+        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">
+          {/* Option 1: Free Base Code */}
+          <div className="p-8 bg-[#0c1117] border border-white/[0.08] rounded-2xl flex flex-col relative overflow-hidden group hover:border-[#58a6ff]/30 transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="h-10 w-10 rounded-xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-[#58a6ff]">
+                <Code2 className="h-5 w-5" />
+              </div>
+              <span className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-[#8b949e]">
+                Self-Hosted
+              </span>
             </div>
 
-            <ul className="space-y-4 text-sm text-[#8b949e] mb-8 flex-grow">
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                <span className="text-white font-semibold">500 Leads</span> of your choice
+            <h3 className="text-xl font-bold text-white mb-2">Base Code</h3>
+            <p className="text-xs text-[#8b949e] mb-6 leading-relaxed">
+              Directly access the base codebase for free. Best for developers and teams ready to self-host and configure the scraper themselves.
+            </p>
+
+            <div className="flex items-baseline gap-1.5 mb-2">
+              <span className="text-4xl sm:text-5xl font-extrabold text-white">$0</span>
+              <span className="text-xs text-[#8b949e] uppercase font-mono">/ Free Forever</span>
+            </div>
+            <p className="text-[11px] text-[#e3b341] font-medium mb-8 flex items-center gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              Manual setup & config required
+            </p>
+
+            <ul className="space-y-3.5 text-sm text-[#8b949e] mb-8 flex-grow">
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span className="text-white">Direct access to base source code</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Dashboard Lead Request Form
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span>Google Maps extraction & coordinate search</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Standard Processing Queue
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span>Local execution scripts & web UI</span>
               </li>
-              <li className="flex items-center gap-2.5 text-red-400">
-                <span className="h-4.5 w-4.5 flex items-center justify-center font-bold text-red-500 mr-0.5 shrink-0">×</span>
-                <span>Chrome Scraper Extension</span>
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span>Self-hosted on your own hardware or cloud</span>
+              </li>
+              <li className="flex items-start gap-2.5 text-[#8b949e]/70">
+                <Check className="h-4 w-4 text-[#8b949e]/50 shrink-0 mt-0.5" />
+                <span>Community guides & documentation</span>
+              </li>
+              <li className="flex items-start gap-2.5 text-[#e3b341]/90 text-xs pt-1">
+                <span className="font-mono text-[#e3b341] font-bold">ℹ</span>
+                <span>You manage setup, dependencies & environment</span>
               </li>
             </ul>
 
-            <Link href={user ? "/dashboard" : "/signup"}>
-              <Button className="w-full h-11 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white hover:bg-white/[0.1] hover:text-white transition-all font-semibold">
-                {user ? "Open Dashboard" : "Choose Basic"}
-              </Button>
-            </Link>
+            <div className="pt-2">
+              <a 
+                href="https://github.com/divyrwal/GeoleadScraper" 
+                target="_blank" 
+                rel="noreferrer"
+                className="w-full"
+              >
+                <Button className="w-full h-11 rounded-xl bg-white/[0.05] border border-white/[0.1] text-white hover:bg-white/[0.1] hover:text-white transition-all font-semibold flex items-center justify-center gap-2">
+                  <Terminal className="h-4 w-4 text-[#58a6ff]" />
+                  Get Base Code (Free)
+                  <ExternalLink className="h-3.5 w-3.5 opacity-60 ml-0.5" />
+                </Button>
+              </a>
+              <p className="text-[11px] text-center text-[#8b949e] mt-2.5">
+                Clone repo & run with your own configuration
+              </p>
+            </div>
           </div>
 
-          {/* Plan 2: Growth (Optimized Quality) */}
-          <div className="p-8 bg-[#0c1117] border border-[#58a6ff]/40 rounded-2xl flex flex-col relative overflow-hidden shadow-2xl shadow-[#58a6ff]/5">
-            <div className="absolute top-0 right-0 bg-[#58a6ff] text-[#030712] font-mono font-bold text-[9px] uppercase tracking-wider px-3 py-1 rounded-bl-lg">
-              Optimized Quality
-            </div>
-            
-            <h3 className="text-lg font-bold text-white mb-1">Growth Plan</h3>
-            <p className="text-xs text-[#8b949e] mb-6">AI-enriched leads requested via dashboard (5000/mo)</p>
-            
-            <div className="flex items-baseline gap-1 mb-8">
-              <span className="text-4xl font-extrabold text-white">$100</span>
-              <span className="text-xs text-[#8b949e]">/ month</span>
+          {/* Option 2: Full Setup for Your Organization ($300) */}
+          <div className="p-8 bg-[#0c1117] border-2 border-[#58a6ff]/60 rounded-2xl flex flex-col relative overflow-hidden shadow-2xl shadow-[#58a6ff]/10 group">
+            <div className="absolute top-0 right-0 bg-gradient-to-r from-[#58a6ff] to-[#79c0ff] text-[#030712] font-mono font-bold text-[10px] uppercase tracking-wider px-3.5 py-1 rounded-bl-xl shadow-md">
+              Most Popular • Done-For-You
             </div>
 
-            <ul className="space-y-4 text-sm text-[#8b949e] mb-8 flex-grow">
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                <span className="text-white font-bold">5,000 Leads</span> / month
+            <div className="flex items-center justify-between mb-4">
+              <div className="h-10 w-10 rounded-xl bg-[#58a6ff]/10 border border-[#58a6ff]/30 flex items-center justify-center text-[#58a6ff]">
+                <Building2 className="h-5 w-5" />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold text-white mb-2">Organization Setup</h3>
+            <p className="text-xs text-[#8b949e] mb-6 leading-relaxed">
+              Get a full setup deployed directly for your organization. Zero headache — our engineers handle end-to-end installation and configuration.
+            </p>
+
+            <div className="flex items-baseline gap-1.5 mb-2">
+              <span className="text-4xl sm:text-5xl font-black text-white">$300</span>
+              <span className="text-xs text-[#8b949e] uppercase font-mono">/ One-time fee</span>
+            </div>
+            <p className="text-[11px] text-[#58a6ff] font-medium mb-8 flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              Complete white-glove setup for your organization
+            </p>
+
+            <ul className="space-y-3.5 text-sm text-[#8b949e] mb-8 flex-grow">
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span className="text-white font-medium">Full setup customized for your organization</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                <span className="text-[#58a6ff] font-bold">AI-Based Results</span> & validation
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span className="text-white">Cloud server & database provisioning</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Optimized Lead Quality Scoring
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span>Custom domain, SSL certificates & auth setup</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Website Email & Social Enrichment
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span>Chrome extension & scraper pipeline integration</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Priority Processing Queue
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span>Proxy calibration & anti-detection safeguards</span>
               </li>
-              <li className="flex items-center gap-2.5 text-red-400">
-                <span className="h-4.5 w-4.5 flex items-center justify-center font-bold text-red-500 mr-0.5 shrink-0">×</span>
-                <span>Chrome Scraper Extension</span>
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span className="text-[#79c0ff]">Full testing, verification & team handover</span>
               </li>
             </ul>
 
-            <Link href={user ? "/dashboard" : "/signup"}>
-              <Button className="w-full h-11 rounded-xl bg-gradient-to-r from-[#58a6ff] to-[#a371f7] text-white hover:opacity-95 transition-opacity font-bold uppercase tracking-wide text-xs">
-                {user ? "Open Dashboard" : "Choose Growth"}
-              </Button>
-            </Link>
+            <div className="pt-2">
+              <a 
+                href="mailto:geolead@arcadealliancenetwork.com?subject=Inquiry:%20Full%20Organization%20Setup%20($300)&body=Hello%20GeoLead%20Team,%0A%0AI%20would%20like%20to%20get%20the%20Full%20Setup%20for%20our%20organization%20for%20$300.%20Please%20let%20me%20know%20the%20onboarding%20steps.%0A%0AOrganization%20Name:%0AContact%20Person:%0AEmail%20/%20Phone:%0ANotes%20/%20Requirements:"
+                className="w-full"
+              >
+                <Button className="w-full h-11 rounded-xl bg-gradient-to-r from-[#58a6ff] to-[#a371f7] text-white hover:opacity-95 transition-opacity font-bold uppercase tracking-wide text-xs shadow-lg shadow-[#58a6ff]/20 flex items-center justify-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Get Full Setup ($300)
+                </Button>
+              </a>
+              <p className="text-[11px] text-center text-[#8b949e] mt-2.5">
+                To buy, contact: <span className="text-[#58a6ff] font-mono">geolead@arcadealliancenetwork.com</span>
+              </p>
+            </div>
           </div>
 
-          {/* Plan 3: Custom Enterprise */}
-          <div className="p-8 bg-[#0c1117] border border-white/[0.06] rounded-2xl flex flex-col relative overflow-hidden group hover:border-[#a371f7]/20 transition-all duration-300">
-            <h3 className="text-lg font-bold text-white mb-1">Enterprise Leads</h3>
-            <p className="text-xs text-[#8b949e] mb-6">Custom cloud data feeds + Direct Scraper Extension</p>
-            
-            <div className="flex items-baseline gap-1 mb-8">
-              <span className="text-4xl font-extrabold text-white">Custom</span>
-              <span className="text-xs text-[#8b949e]">pricing</span>
+          {/* Option 3: Complete Code License ($999) */}
+          <div className="p-8 bg-[#0c1117] border border-[#a371f7]/40 rounded-2xl flex flex-col relative overflow-hidden group hover:border-[#a371f7]/70 transition-all duration-300">
+            <div className="absolute top-0 right-0 bg-[#a371f7]/15 border-b border-l border-[#a371f7]/30 text-[#d2a8ff] font-mono font-bold text-[10px] uppercase tracking-wider px-3 py-1 rounded-bl-xl">
+              Complete License
             </div>
 
-            <ul className="space-y-4 text-sm text-[#8b949e] mb-8 flex-grow">
-              <li className="flex items-center gap-2.5 font-bold text-[#a371f7]">
-                <Check className="h-4.5 w-4.5 text-[#a371f7] shrink-0 animate-pulse" />
-                <span>Includes Chrome Scraper Extension</span>
+            <div className="flex items-center justify-between mb-4">
+              <div className="h-10 w-10 rounded-xl bg-[#a371f7]/10 border border-[#a371f7]/30 flex items-center justify-center text-[#a371f7]">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold text-white mb-2">Complete Code License</h3>
+            <p className="text-xs text-[#8b949e] mb-6 leading-relaxed">
+              Acquire the official commercial license for the complete codebase with unrestricted source code ownership and commercial rights.
+            </p>
+
+            <div className="flex items-baseline gap-1.5 mb-2">
+              <span className="text-4xl sm:text-5xl font-black text-white">$999</span>
+              <span className="text-xs text-[#8b949e] uppercase font-mono">/ Full License</span>
+            </div>
+            <p className="text-[11px] text-[#a371f7] font-medium mb-8 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              100% full source ownership & commercial rights
+            </p>
+
+            <ul className="space-y-3.5 text-sm text-[#8b949e] mb-8 flex-grow">
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span className="text-white font-medium">Commercial license of the complete code</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Infinite Direct Extension Scans
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span className="text-white">Full source: Web App, API backend & Chrome Extension</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Dedicated Scraper Proxy Nodes
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span>Unrestricted rights: modify, white-label, rebrand</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                Webhook Integration & CRM Sync
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span>Deep Scan 7.0 multi-grid engines & bypass algorithms</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Check className="h-4.5 w-4.5 text-[#3fb950] shrink-0" />
-                24/7 SLA Priority Support
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span>Built-in local AI enrichment & lead scoring modules</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" />
+                <span className="text-[#d2a8ff]">Priority engineering repository transfer & direct support</span>
               </li>
             </ul>
 
-            <Link href="mailto:enterprise@geolead.com?subject=Custom Enterprise Lead Scraping Quote">
-              <Button className="w-full h-11 rounded-xl bg-[#161b22] border border-white/[0.08] text-white hover:bg-white/[0.05] transition-all font-semibold">
-                Contact Sales
+            <div className="pt-2">
+              <a 
+                href="mailto:geolead@arcadealliancenetwork.com?subject=Inquiry:%20Complete%20Code%20License%20($999)&body=Hello%20GeoLead%20Team,%0A%0AI%20would%20like%20to%20purchase%20the%20Complete%20Code%20License%20for%20$999.%20Please%20send%20over%20the%20commercial%20license%20agreement%20and%20payment%20instructions.%0A%0ACompany%20/%20Licensee%20Name:%0AContact%20Person:%0AEmail%20/%20Phone:%0ABusiness%20Website:"
+                className="w-full"
+              >
+                <Button className="w-full h-11 rounded-xl bg-[#161b22] border border-[#a371f7]/50 text-white hover:bg-[#a371f7]/20 hover:border-[#a371f7] transition-all font-semibold flex items-center justify-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-[#a371f7]" />
+                  Buy Complete License ($999)
+                </Button>
+              </a>
+              <p className="text-[11px] text-center text-[#8b949e] mt-2.5">
+                To buy, contact: <span className="text-[#a371f7] font-mono">geolead@arcadealliancenetwork.com</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Contact & Purchasing Information Banner ─── */}
+        <div className="mt-12 max-w-4xl mx-auto rounded-2xl bg-gradient-to-r from-[#0c1117] via-[#12171e] to-[#0c1117] border border-white/[0.08] p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#58a6ff]/5 rounded-full blur-[80px] pointer-events-none" />
+
+          <div className="flex items-start gap-4 text-left">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#58a6ff]/20 to-[#a371f7]/20 border border-white/[0.1] flex items-center justify-center shrink-0 text-[#58a6ff]">
+              <Mail className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base font-bold text-white">How to purchase or get started</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#3fb950]/10 text-[#3fb950] border border-[#3fb950]/20">
+                  Fast Response
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-[#8b949e] leading-relaxed max-w-lg">
+                To order the <strong className="text-white">$300 Organization Setup</strong> or purchase the <strong className="text-white">$999 Complete Code License</strong>, contact our team directly at:
+              </p>
+              <div className="mt-3 inline-flex items-center gap-2 font-mono text-xs sm:text-sm bg-black/40 px-3 py-1.5 rounded-lg border border-white/[0.08] text-[#58a6ff]">
+                <span>geolead@arcadealliancenetwork.com</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-row md:flex-col gap-3 shrink-0 w-full md:w-auto">
+            <a 
+              href="mailto:geolead@arcadealliancenetwork.com?subject=GeoLead%20Purchase%20Inquiry%20($300%20Setup%20or%20$999%20License)&body=Hi%20GeoLead%20Team,%0A%0AI%20am%20interested%20in%20purchasing:%0A[ ] $300 Full Setup for Organization%0A[ ] $999 Complete Code License%0A%0AOrganization%20/%20Buyer%20Name:%0AContact%20Email:%0APhone:"
+              className="flex-1 md:flex-none"
+            >
+              <Button className="w-full h-10 px-5 rounded-lg bg-white text-[#030712] font-semibold text-xs tracking-wide uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2 shadow-md">
+                <Mail className="h-4 w-4" />
+                Email to Buy
               </Button>
-            </Link>
+            </a>
+            <Button 
+              variant="outline" 
+              onClick={handleCopyEmail}
+              className="flex-1 md:flex-none h-10 px-5 rounded-lg border-white/[0.1] bg-white/[0.02] text-xs text-[#c9d1d9] hover:bg-white/[0.06] hover:text-white transition-all flex items-center justify-center gap-2"
+            >
+              {copiedEmail ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-[#3fb950]" />
+                  <span className="text-[#3fb950] font-semibold">Email Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Copy Address</span>
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </section>
@@ -846,22 +1006,32 @@ export default function LandingPage() {
       <div className="w-full border-t border-white/[0.06] relative z-10" />
 
       {/* ── Interactive CTA ─────────────────────────── */}
-      <section className="relative z-10 py-32 px-6 text-center">
+      <section className="relative z-10 py-28 px-6 text-center">
         <div className="absolute top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] w-[350px] h-[350px] bg-[#58a6ff]/5 rounded-full blur-[60px] pointer-events-none" />
 
         <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white mb-4">
           Ready to supercharge your local outreach?
         </h2>
-        <p className="text-[#8b949e] text-base mb-10 max-w-md mx-auto leading-relaxed">
-          Create a free account, request your target lead sector on your dashboard, and download enriched data in less than two minutes.
+        <p className="text-[#8b949e] text-base mb-8 max-w-xl mx-auto leading-relaxed">
+          Get started for free with the base code, let our team set it up for your organization for just $300, or acquire the complete commercial code license for $999.
         </p>
-        
-        <Link href={user ? "/dashboard" : "/signup"}>
-          <Button className="h-13 px-9 rounded-xl bg-white text-[#030712] font-extrabold text-sm tracking-wide uppercase hover:bg-white/95 transition-all shadow-lg hover:shadow-white/5 group">
-            Get started for free
-            <ArrowRight className="ml-2 h-4.5 w-4.5 group-hover:translate-x-1 transition-transform" />
-          </Button>
-        </Link>
+
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+          <a href="mailto:geolead@arcadealliancenetwork.com?subject=GeoLead%20Inquiry">
+            <Button className="h-12 px-8 rounded-xl bg-gradient-to-r from-[#58a6ff] to-[#a371f7] text-white font-bold text-sm tracking-wide uppercase hover:opacity-95 transition-opacity shadow-lg shadow-[#58a6ff]/20 flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              Contact geolead@arcadealliancenetwork.com
+            </Button>
+          </a>
+          <a href="#pricing">
+            <Button variant="outline" className="h-12 px-7 rounded-xl border-white/[0.1] bg-white/[0.02] text-sm text-[#c9d1d9] hover:bg-white/[0.06] hover:text-white transition-all">
+              Compare Options
+            </Button>
+          </a>
+        </div>
+        <p className="text-xs text-[#8b949e] font-mono">
+          Questions or custom inquiries? Write directly to <a href="mailto:geolead@arcadealliancenetwork.com" className="text-[#58a6ff] hover:underline">geolead@arcadealliancenetwork.com</a>
+        </p>
       </section>
 
       {/* ── Footer ──────────────────────────────────── */}
@@ -875,10 +1045,17 @@ export default function LandingPage() {
             <span className="text-[11px] text-[#484f58] font-mono">| &copy; {new Date().getFullYear()}</span>
           </div>
 
-          <div className="flex items-center gap-6 text-xs text-[#8b949e]">
-            <Link href="#" className="hover:text-white transition-colors">Privacy Policy</Link>
-            <Link href="#" className="hover:text-white transition-colors">Terms of Service</Link>
-            <Link href="#" className="hover:text-white transition-colors font-mono">v7.0 Stable</Link>
+          <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-[#8b949e]">
+            <a href="mailto:geolead@arcadealliancenetwork.com" className="hover:text-white transition-colors flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5 text-[#58a6ff]" />
+              geolead@arcadealliancenetwork.com
+            </a>
+            <Link href="#pricing" className="hover:text-white transition-colors">Pricing & Options</Link>
+            <a href="https://github.com/divyrwal/GeoleadScraper" target="_blank" rel="noreferrer" className="hover:text-white transition-colors flex items-center gap-1">
+              GitHub Base Code
+              <ExternalLink className="h-3 w-3 opacity-60" />
+            </a>
+            <span className="text-[#484f58] font-mono">v7.0 Stable</span>
           </div>
         </div>
       </footer>
